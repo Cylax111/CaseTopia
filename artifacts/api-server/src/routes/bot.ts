@@ -172,7 +172,7 @@ router.get("/bot/pending-deposits", requireBotSecret, async (req: any, res) => {
 
     if (req.query.format === "text") {
       const lines = deposits.map((d) =>
-        `${d.worldName}|${d.growId ?? ""}|${d.userId}`
+        `${d.worldName}|${d.growId ?? ""}|${d.userId}|${d.expiresAt ? Math.floor(d.expiresAt.getTime() / 1000) : ""}`
       );
       res.type("text/plain").send(lines.join("\n"));
     } else {

@@ -75,7 +75,7 @@ local function watch_inventory(bot, timeoutSecs)
     return 0
 end
 
-local function handle_deposit(bot, world, growId, userId)
+local function handle_deposit(bot, world, growId, userId, expiresAt)
     claimed_worlds[world] = true
     bot:warp(world)
     sleep(3000)
@@ -91,8 +91,13 @@ local function handle_deposit(bot, world, growId, userId)
     print("[DEPOSIT] Claimed " .. world)
     bot:say("@" .. tostring(growId) .. " Hi! Trade me your Diamond Locks to deposit.")
 
-    -- Wait for the player to trade (up to 2 minutes = 120 seconds)
-    local amount = watch_inventory(bot, 120)
+    -- Wait only until the real expiry time (not a fixed 120s)
+    local timeLeft = 120
+    if expiresAt and expiresAt > 0 then
+        timeLeft = math.max(10, expiresAt - os.time())
+    end
+    print("[DEPOSIT] Waiting up to " .. timeLeft .. "s for trade in " .. world)
+    local amount = watch_inventory(bot, timeLeft)
 
     if amount <= 0 then
         print("[DEPOSIT] Timed out waiting for trade in " .. world .. " - cancelling")
@@ -120,11 +125,12 @@ local function poll_deposits(bot)
     local res = api_get("/bot/pending-deposits", "format=text")
     if not res or res == "" then return end
     for line in res:gmatch("[^\n]+") do
-        -- format: worldName|growId|userId
-        local world, growId, userId = line:match("^([^|]+)|([^|]*)|([^|]+)$")
+        -- format: worldName|growId|userId|expiresAtUnix
+        local world, growId, userId, expiresAtStr = line:match("^([^|]+)|([^|]*)|([^|]+)|([^|]*)$")
         if world and not claimed_worlds[world] then
-            print("[DEPOSIT] New session - world: " .. world .. " player: " .. tostring(growId))
-            handle_deposit(bot, world, growId, userId)
+            local expiresAt = tonumber(expiresAtStr) or 0
+            print("[DEPOSIT] New session - world: " .. world .. " player: " .. tostring(growId) .. " expires: " .. tostring(expiresAt))
+            handle_deposit(bot, world, growId, userId, expiresAt)
             -- handle_deposit is blocking (waits for trade), so only one at a time
             return
         end
