@@ -254,23 +254,17 @@ function VerticalItemBox({ item }: { item: CaseItem }) {
   );
 }
 
-/* Vertical reel card — fills one slot, image + name + price centered */
+/* Vertical reel card — image only while spinning */
 function VerticalReelItemBox({ item, height = 160 }: { item: CaseItem; height?: number }) {
-  const { formatBalance } = useCurrency();
   const rarity = rarityFromChance(item.chance);
   const hex = RARITY_HEX[rarity] ?? "#888";
   return (
     <div
-      className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5"
-      style={{ height, borderBottom: `3px solid ${hex}66` }}
+      className="flex-shrink-0 flex items-center justify-center"
+      style={{ height, width: "100%", borderBottom: `3px solid ${hex}66`, background: "rgba(255,255,255,0.03)" }}
     >
       <div style={{ filter: `drop-shadow(0 0 10px ${hex}aa)` }}>
         <ItemThumbnail item={item} size="md" />
-      </div>
-      <div className="text-[11px] font-semibold text-white/90 truncate text-center px-2 max-w-full leading-tight">{item.name}</div>
-      <div className="flex items-center gap-0.5">
-        <span className="text-[11px] font-bold text-yellow-400">{formatBalance(item.value)}</span>
-        <GemIcon size={9} />
       </div>
     </div>
   );
@@ -1574,6 +1568,20 @@ export default function Cases() {
                                 )}
                                 {modalMode === "bonus_spin" && isNestedCase && (
                                   <div className="text-center text-[10px] font-bold animate-pulse mt-1 uppercase" style={{ color: "#fbbf24" }}>🎁 Super Summer!</div>
+                                )}
+                                {modalMode === "result" && wonItems[idx] && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.25 }}
+                                    className="text-center mt-1.5 px-1"
+                                  >
+                                    <p className="text-[11px] font-semibold text-white/90 truncate leading-tight">{wonItems[idx].name}</p>
+                                    <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                                      <span className="text-[11px] font-bold text-yellow-400">{fmt(wonItems[idx].value)}</span>
+                                      <GemIcon size={10} />
+                                    </div>
+                                  </motion.div>
                                 )}
                               </div>
                             );
