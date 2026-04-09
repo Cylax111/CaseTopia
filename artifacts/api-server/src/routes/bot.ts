@@ -118,6 +118,21 @@ router.post("/bot/deposit-complete", requireBotSecret, async (req: any, res) => 
   }
 });
 
+// ── Bot: get pending deposits to process ─────────────────────────────────────
+router.get("/bot/pending-deposits", requireBotSecret, async (_req, res) => {
+  try {
+    const pending = await db.select()
+      .from(walletTransactionsTable)
+      .where(eq(walletTransactionsTable.status, "pending"))
+      .limit(50);
+
+    const deposits = pending.filter((t) => t.type === "deposit");
+    res.json(deposits);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── Bot: get pending withdrawals to process ───────────────────────────────────
 router.get("/bot/pending-withdrawals", requireBotSecret, async (_req, res) => {
   try {

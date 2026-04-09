@@ -1,0 +1,197 @@
+import requests
+import random
+import string
+import time
+import threading
+import json
+from datetime import datetime
+
+class GrowtopiaDepositBot:
+    def __init__(self, username, password, website_url):
+        self.username = username
+        self.password = password
+        self.website_url = website_url
+        self.active_trades = {}  # Dictionary to store active trades
+        self.world_prefix = "DEPOSIT"  # Prefix for generated worlds
+        self.lock_values = {
+            "Diamond Lock": 100,
+            "Blue Gem Lock": 1000,
+            # You can add more locks and their values here
+        }
+        
+    def generate_random_world(self):
+        """Generate a random world name with prefix"""
+        suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        return f"{self.world_prefix}{suffix}"
+    
+    def start_bot(self):
+        """Initialize and start the bot connection to Growtopia"""
+        # This is where you would connect to the Growtopia server
+        # Implementation depends on the specific GrowtopiaBot library you're using
+        print(f"Starting bot with username: {self.username}")
+        
+        # Example connection code (will vary based on your bot library):
+        # self.bot = GrowtopiaBot(self.username, self.password)
+        # self.bot.connect()
+        # self.bot.start_event_loop()
+        
+        # For demonstration purposes, we'll simulate the bot connection
+        self.simulate_bot_connection()
+    
+    def simulate_bot_connection(self):
+        """Simulate bot connection for demonstration purposes"""
+        print("Bot connected to Growtopia servers")
+        print("Waiting for deposit requests...")
+        
+        # Start monitoring for deposit requests from the website
+        threading.Thread(target=self.monitor_deposit_requests, daemon=True).start()
+        
+        # Keep the bot running
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Bot shutting down...")
+    
+    def monitor_deposit_requests(self):
+        """Monitor the website for new deposit requests"""
+        while True:
+            try:
+                # This would be an API endpoint on your website to check for new deposits
+                response = requests.get(f"{self.website_url}/api/check-deposits")
+                
+                if response.status_code == 200:
+                    deposits = response.json()
+                    
+                    for deposit in deposits:
+                        if deposit["status"] == "pending" and deposit["id"] not in self.active_trades:
+                            self.handle_new_deposit(deposit)
+                
+                time.sleep(5)  # Check every 5 seconds
+            except Exception as e:
+                print(f"Error checking deposits: {e}")
+                time.sleep(10)  # Wait longer if there's an error
+    
+    def handle_new_deposit(self, deposit):
+        """Handle a new deposit request"""
+        player_name = deposit["player_name"]
+        amount = deposit["amount"]
+        
+        # Generate a random world for the trade
+        world_name = self.generate_random_world()
+        
+        # Store the trade information
+        self.active_trades[deposit["id"]] = {
+            "player_name": player_name,
+            "amount": amount,
+            "world_name": world_name,
+            "status": "waiting",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Update the website with the world information
+        self.update_deposit_status(deposit["id"], "world_generated", {"world": world_name})
+        
+        # Go to the world and wait for the player
+        self.go_to_world(world_name)
+        
+        # Send a message to the player in the game
+        self.send_message(f"@{player_name}, Welcome to the deposit world! Please trade me {amount} worth of locks.")
+        
+        print(f"Generated world {world_name} for {player_name}'s deposit of {amount}")
+    
+    def go_to_world(self, world_name):
+        """Command to make the bot go to a specific world"""
+        # This would use your bot library's function to change worlds
+        print(f"Bot going to world: {world_name}")
+        # Example: self.bot.goto_world(world_name)
+    
+    def send_message(self, message):
+        """Send a message in Growtopia chat"""
+        # This would use your bot library's function to send messages
+        print(f"Bot message: {message}")
+        # Example: self.bot.say(message)
+    
+    def handle_trade(self, player_name, trade_items):
+        """Handle a trade with a player"""
+        # Calculate the value of items offered
+        total_value = 0
+        
+        for item in trade_items:
+            item_name = item["name"]
+            quantity = item["quantity"]
+            
+            if item_name in self.lock_values:
+                total_value += self.lock_values[item_name] * quantity
+        
+        # Find the corresponding deposit
+        deposit_id = None
+        for d_id, deposit in self.active_trades.items():
+            if deposit["player_name"] == player_name and deposit["status"] == "waiting":
+                deposit_id = d_id
+                break
+        
+        if deposit_id:
+            if total_value >= self.active_trades[deposit_id]["amount"]:
+                # Accept the trade
+                self.accept_trade()
+                
+                # Update the deposit status
+                self.active_trades[deposit_id]["status"] = "completed"
+                self.update_deposit_status(deposit_id, "completed", {"value": total_value})
+                
+                # Thank the player
+                self.send_message(f"@{player_name}, thank you for your deposit! Your balance has been updated.")
+                
+                print(f"Completed trade with {player_name} for {total_value} worth of locks")
+            else:
+                # Reject the trade
+                self.reject_trade()
+                self.send_message(f"@{player_name}, the value of your items is {total_value}, but you need to deposit at least {self.active_trades[deposit_id]['amount']}.")
+                
+                print(f"Rejected trade with {player_name}. Value: {total_value}, Required: {self.active_trades[deposit_id]['amount']}")
+    
+    def accept_trade(self):
+        """Accept the current trade"""
+        # This would use your bot library's function to accept a trade
+        print("Trade accepted")
+        # Example: self.bot.accept_trade()
+    
+    def reject_trade(self):
+        """Reject the current trade"""
+        # This would use your bot library's function to reject a trade
+        print("Trade rejected")
+        # Example: self.bot.reject_trade()
+    
+    def update_deposit_status(self, deposit_id, status, data=None):
+        """Update the deposit status on the website"""
+        try:
+            payload = {
+                "deposit_id": deposit_id,
+                "status": status,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            if data:
+                payload.update(data)
+            
+            response = requests.post(f"{self.website_url}/api/update-deposit", json=payload)
+            
+            if response.status_code == 200:
+                print(f"Updated deposit {deposit_id} status to {status}")
+            else:
+                print(f"Failed to update deposit status: {response.status_code}")
+        except Exception as e:
+            print(f"Error updating deposit status: {e}")
+
+# Example usage
+if __name__ == "__main__":
+    # Initialize the bot with your credentials
+    bot = GrowtopiaDepositBot(
+        username="YourBotUsername",
+        password="YourBotPassword",
+        website_url="https://case-topia.replit.app"
+    )
+    
+    # Start the bot
+    bot.start_bot()
