@@ -1,25 +1,20 @@
 -- BetTopia Deposit & Withdrawal Bot
 -- Lucifer v2.83 p2
--- Uses curl via io.popen; no JSON library required (text format API)
+-- Deposit detection via inventory polling (getItemCount)
+-- No trade events needed; works with curl via io.popen
 
 local WEBSITE_URL = "https://case-topia.replit.app"
 local BOT_SECRET  = "0d68e6d0b7388733c797bfbe76ad3e5e2f3917de52365871ac1f3d7685f8037e"
 local BOT_GROW_ID = "zPlaysGT"
 
-local ITEM_VALUES = {
-    ["World Lock"]    = 0.01,
-    ["Diamond Lock"]  = 1,
-    ["Blue Gem Lock"] = 100,
-    ["Dragon Lock"]   = 500,
-}
+-- Growtopia item IDs
+local ITEM_DL = 1796  -- Diamond Lock
+local ITEM_WL = 242   -- World Lock
 
+-- Deposits claimed this session (worldName -> true)
 local claimed_worlds = {}
+-- Withdrawals being processed this session (txId -> true)
 local processing_wd  = {}
-
-local function sleep(ms)
-    local t = os.clock()
-    while os.clock() - t < ms / 1000 do end
-end
 
 -- GET request, returns raw response string or nil
 local function api_get(path, params)
@@ -50,20 +45,74 @@ local function api_post(path, params)
     return res
 end
 
-local function trade_value(items)
-    local total = 0
-    for _, item in ipairs(items or {}) do
-        local val = ITEM_VALUES[item.name]
-        if val then
-            total = total + val * (item.count or item.quantity or 1)
-        else
-            print("[WARN] Unknown item: " .. tostring(item.name))
-        end
-    end
-    return total
+-- Snapshot current DL and WL counts
+local function inv_snapshot(bot)
+    local inv = bot:getInventory()
+    return inv:getItemCount(ITEM_DL), inv:getItemCount(ITEM_WL)
 end
 
-local function poll_deposits()
+-- Watch inventory for up to timeoutSecs seconds.
+-- Returns gained DL amount (DL + WL converted), or 0 on timeout.
+local function watch_inventory(bot, timeoutSecs)
+    local prevDL, prevWL = inv_snapshot(bot)
+    print("[INV] Before trade - DL:" .. prevDL .. " WL:" .. prevWL)
+    local elapsed = 0
+    while elapsed < timeoutSecs do
+        sleep(2000)
+        elapsed = elapsed + 2
+        local curDL, curWL = inv_snapshot(bot)
+        local gainDL = curDL - prevDL
+        local gainWL = curWL - prevWL
+        if gainDL > 0 or gainWL > 0 then
+            -- Convert: 100 WL = 1 DL
+            local totalDL = gainDL + (gainWL / 100)
+            print("[INV] Trade detected! +" .. gainDL .. " DL, +" .. gainWL .. " WL = " .. totalDL .. " DL total")
+            return totalDL
+        end
+    end
+    return 0
+end
+
+local function handle_deposit(bot, world, growId, userId)
+    claimed_worlds[world] = true
+    bot:warp(world)
+    sleep(3000)
+
+    -- Claim the session so it leaves the pending queue
+    local claim_res = api_post("/bot/claim-deposit",
+        "worldName=" .. world .. "&botGrowId=" .. BOT_GROW_ID)
+    if not claim_res or not claim_res:find('"ok":true') then
+        print("[DEPOSIT] Claim failed for " .. world .. ": " .. tostring(claim_res))
+        claimed_worlds[world] = nil
+        return
+    end
+    print("[DEPOSIT] Claimed " .. world)
+    bot:say("@" .. tostring(growId) .. " Hi! Trade me your Diamond Locks to deposit.")
+
+    -- Wait for the player to trade (up to 2 minutes = 120 seconds)
+    local amount = watch_inventory(bot, 120)
+
+    if amount <= 0 then
+        print("[DEPOSIT] Timed out waiting for trade in " .. world)
+        claimed_worlds[world] = nil
+        return
+    end
+
+    -- Complete the deposit
+    local done_res = api_post("/bot/deposit-complete",
+        "worldName=" .. world .. "&amountDl=" .. tostring(amount))
+    if done_res and done_res:find('"ok":true') then
+        print("[DEPOSIT] Credited " .. amount .. " DL for world " .. world)
+        bot:say("@" .. tostring(growId) .. " Deposit received! " .. tostring(amount) .. " DL added to your balance.")
+    else
+        print("[DEPOSIT] deposit-complete failed: " .. tostring(done_res))
+        bot:say("@" .. tostring(growId) .. " Something went wrong - contact support.")
+    end
+
+    claimed_worlds[world] = nil
+end
+
+local function poll_deposits(bot)
     local res = api_get("/bot/pending-deposits", "format=text")
     if not res or res == "" then return end
     for line in res:gmatch("[^\n]+") do
@@ -71,22 +120,14 @@ local function poll_deposits()
         local world, growId, userId = line:match("^([^|]+)|([^|]*)|([^|]+)$")
         if world and not claimed_worlds[world] then
             print("[DEPOSIT] New session - world: " .. world .. " player: " .. tostring(growId))
-            Lucifer.warp(world)
-            sleep(3000)
-            local claim_res = api_post("/bot/claim-deposit",
-                "worldName=" .. world .. "&botGrowId=" .. BOT_GROW_ID)
-            if claim_res and claim_res:find('"ok":true') then
-                claimed_worlds[world] = true
-                print("[DEPOSIT] Claimed " .. world)
-                Lucifer.say("@" .. tostring(growId) .. " Hi! Trade me your DLs here to deposit.")
-            else
-                print("[DEPOSIT] Claim failed: " .. tostring(claim_res))
-            end
+            handle_deposit(bot, world, growId, userId)
+            -- handle_deposit is blocking (waits for trade), so only one at a time
+            return
         end
     end
 end
 
-local function poll_withdrawals()
+local function poll_withdrawals(bot)
     local res = api_get("/bot/pending-withdrawals", "format=text")
     if not res or res == "" then return end
     for line in res:gmatch("[^\n]+") do
@@ -96,7 +137,7 @@ local function poll_withdrawals()
             processing_wd[tx_id] = true
             local amount = tonumber(amount_str) or 0
             print("[WITHDRAW] " .. tostring(amount) .. " DL to " .. tostring(grow_id))
-            -- TODO: deliver items in-game
+            -- TODO: deliver items in-game (trade TO the player)
             local done_res = api_post("/bot/withdraw-complete",
                 "transactionId=" .. tx_id)
             if done_res and done_res:find('"ok":true') then
@@ -107,30 +148,13 @@ local function poll_withdrawals()
     end
 end
 
-function onTradeAccepted(player_name, items)
-    local world  = getWorld()
-    local amount = trade_value(items)
-    if amount <= 0 then
-        print("[TRADE] No recognized items from " .. tostring(player_name))
-        return
-    end
-    print("[TRADE] " .. tostring(amount) .. " DL from " .. tostring(player_name) .. " in " .. tostring(world))
-    local res = api_post("/bot/deposit-complete",
-        "worldName=" .. world .. "&amountDl=" .. tostring(amount))
-    if res and res:find('"ok":true') then
-        print("[TRADE] Credited " .. tostring(amount) .. " DL")
-        Lucifer.say("@" .. player_name .. " Deposit received! " .. tostring(amount) .. " DL added to your balance.")
-        claimed_worlds[world] = nil
-    else
-        print("[TRADE] deposit-complete failed: " .. tostring(res))
-        Lucifer.say("@" .. player_name .. " Something went wrong - contact support.")
-    end
-end
+-- Main loop
+local bot = getBot(BOT_GROW_ID)
+print("BetTopia bot started! Bot: " .. tostring(bot))
 
-print("BetTopia bot started!")
 while true do
-    poll_deposits()
+    poll_deposits(bot)
     sleep(1000)
-    poll_withdrawals()
+    poll_withdrawals(bot)
     sleep(4000)
 end
