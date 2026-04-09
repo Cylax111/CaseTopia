@@ -119,6 +119,7 @@ import mutatedSeedSrc from "@assets/mutated_seed_1775674905453.webp";
 import skullLauncherSrc from "@assets/skull_launcher_1775674934198.webp";
 import teenyAngelWingsSrc from "@assets/teeny_angel_wings_1775747483643.webp";
 import fairyWingsSrc from "@assets/fairy_wings_1775747502366.webp";
+import autumnWingsSrc from "@assets/autumn_wings_1775747655581.webp";
 
 export interface CatalogItem {
   id: string;
@@ -968,6 +969,13 @@ export const ITEMS_CATALOG: CatalogItem[] = [
     imageUrl: fairyWingsSrc,
     value: 0.03,
     color: "#f0abfc",
+  },
+  {
+    id: "autumn_wings",
+    name: "Autumn Wings",
+    imageUrl: autumnWingsSrc,
+    value: 9,
+    color: "#f97316",
   },
 ];
 
