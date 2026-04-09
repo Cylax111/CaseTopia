@@ -215,6 +215,22 @@ export default function Mines() {
           { const { dismiss } = toast({ title: res.isMine ? "BOOM! You hit a mine!" : "Game Over", variant: "destructive" }); setTimeout(dismiss, 3000); }
         } else {
           setCurrentMultiplier(res.currentMultiplier);
+          // Auto-cashout when every safe tile has been revealed
+          const newDiamondsRevealed = Object.values(revealedTiles).filter(t => t === 'diamond').length + 1;
+          if (!res.isMine && newDiamondsRevealed >= 25 - mineCount) {
+            cashoutMutation.mutate({ data: { gameId } }, {
+              onSuccess: (cashRes) => {
+                playCashoutSound();
+                if (typeof (cashRes as any).newBalance === "number") {
+                  updateUser({ balance: (cashRes as any).newBalance, ...((cashRes as any).newLevel != null ? { level: (cashRes as any).newLevel } : {}) });
+                }
+                setIsGameOver(true);
+                setGameId(null);
+                if (cashRes.minePositions) setAllMines(cashRes.minePositions);
+                { const { dismiss } = toast({ title: <span className="text-2xl font-black text-green-400">All tiles cleared!</span>, description: <span className="text-xl font-bold flex items-center gap-1">Won {formatBalance(betAmount + cashRes.profit)} <GemIcon size={18} /></span> }); setTimeout(dismiss, 3000); }
+              },
+            });
+          }
         }
       },
       onError: (err: any) => {
