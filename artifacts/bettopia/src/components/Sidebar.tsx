@@ -22,7 +22,7 @@ interface SidebarProps {
 const CHAT_EMOJIS: { code: string; src: string; label: string }[] = [
   { code: ":laugh:", src: "/emojis/laugh.png", label: "Laugh" },
   { code: ":mlg:", src: "/emojis/mlg.png", label: "MLG" },
-  { code: ":ujo:", src: "/emojis/ujo.png", label: "Ujo" },
+  { code: ":blush:", src: "/emojis/ujo.png", label: "Blush" },
 ];
 
 function renderMessageWithMentions(
