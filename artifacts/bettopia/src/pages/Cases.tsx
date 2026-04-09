@@ -1475,23 +1475,28 @@ export default function Cases() {
               {modalMode === "info" || (modalMode === "result" && reelItemsPerReel.length === 0) ? (
                 openCount === 1 ? (
                 /* Single horizontal reel preview */
-                <div style={{ position: "relative", height: 168, overflow: "hidden" }}>
-                  {/* Left arrow */}
-                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
-                    <ChevronLeft style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
-                  </div>
-                  {/* Right arrow */}
-                  <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
-                    <ChevronRight style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
-                  </div>
-                  <div style={{ position: "absolute", inset: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-                    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-                    <div className="flex gap-0 items-center">
-                      {staticReel.map((item, i) => <ReelItemBox key={i} item={item} highlighted={i === 5} rowHeight={168} />)}
+                <div style={{ position: "relative", height: 168 }}>
+                  {/* Top triangle pointing down */}
+                  <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "14px solid #a78bfa", zIndex: 100, pointerEvents: "none" }} />
+                  {/* Bottom triangle pointing up */}
+                  <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: "14px solid #a78bfa", zIndex: 100, pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+                    {/* Left arrow */}
+                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
+                      <ChevronLeft style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
+                    </div>
+                    {/* Right arrow */}
+                    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
+                      <ChevronRight style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
+                    </div>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
+                      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
+                      <div className="flex gap-0 items-center">
+                        {staticReel.map((item, i) => <ReelItemBox key={i} item={item} highlighted={i === 5} rowHeight={168} />)}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 3, marginLeft: -1, backgroundColor: "#a78bfa", zIndex: 99, pointerEvents: "none" }} />
                 </div>
                 ) : (
                 /* Multi static preview — vertical cards side by side */
