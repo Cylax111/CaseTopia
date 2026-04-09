@@ -261,7 +261,7 @@ function VerticalReelItemBox({ item, height = 160 }: { item: CaseItem; height?: 
   return (
     <div
       className="flex-shrink-0 flex items-center justify-center"
-      style={{ height, width: "100%", borderBottom: `3px solid ${hex}66`, background: "rgba(255,255,255,0.03)" }}
+      style={{ height, width: "100%" }}
     >
       <div style={{ filter: `drop-shadow(0 0 10px ${hex}aa)` }}>
         <ItemThumbnail item={item} size="md" />
@@ -1553,19 +1553,32 @@ export default function Cases() {
                   </div>
                 </div>
                 ) : (
-                /* Multi static preview — vertical cards side by side */
+                /* Multi static preview — vertical cards side by side with triangles + diamonds */
                 (() => {
                   const vc = getVConfig(openCount);
                   return (
-                    <div style={{ display: "flex", gap: 10, padding: "0 16px" }}>
-                      {Array.from({ length: openCount }).map((_, idx) => {
-                        const item = staticReel[idx % staticReel.length] ?? staticReel[0];
-                        return item ? (
-                          <div key={idx} style={{ flex: 1, minWidth: 0, borderRadius: 10, overflow: "hidden" }}>
-                            <VerticalReelItemBox item={item} height={vc.itemH} />
-                          </div>
-                        ) : null;
-                      })}
+                    <div style={{ position: "relative" }}>
+                      {/* Left inward triangle → */}
+                      <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: "13px solid #a78bfa", zIndex: 100, pointerEvents: "none" }} />
+                      {/* Right inward triangle ← */}
+                      <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: "13px solid #a78bfa", zIndex: 100, pointerEvents: "none" }} />
+                      <div style={{ display: "flex" }}>
+                        {Array.from({ length: openCount }).map((_, idx) => {
+                          const item = staticReel[idx % staticReel.length] ?? staticReel[0];
+                          return (
+                            <React.Fragment key={idx}>
+                              {idx > 0 && (
+                                <div style={{ width: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <div style={{ width: 9, height: 9, background: "#a78bfa", transform: "rotate(45deg)", opacity: 0.75 }} />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                                {item ? <VerticalReelItemBox item={item} height={vc.itemH} /> : null}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })()
@@ -1577,74 +1590,87 @@ export default function Cases() {
                     /* VERTICAL columns — side by side, each spinning top-to-bottom */
                     (() => {
                       const vc = getVConfig(reelItemsPerReel.length || openCount);
+                      const anyBonus = bonusReelIndices.size > 0 || nestedCaseBonusReelIndices.size > 0;
+                      const triColor = anyBonus && modalMode === "bonus_spin" ? "#fbbf24" : "#a78bfa";
                       return (
-                        <div style={{ display: "flex", gap: 10, padding: "0 16px" }}>
-                          {reelItemsPerReel.map((reelItems, idx) => {
-                            const isBonus = bonusReelIndices.has(idx);
-                            const isNestedCase = nestedCaseBonusReelIndices.has(idx);
-                            return (
-                              <div key={idx} style={{ flex: 1, minWidth: 0, position: "relative" }}>
-                                {modalMode === "bonus_case" && bonusCaseInfo && isNestedCase ? (
-                                  <motion.div
-                                    key="bonus-case-display"
-                                    initial={{ opacity: 0, scale: 0.6 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ type: "spring", stiffness: 180, damping: 14 }}
-                                    style={{ height: vc.containerH, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "radial-gradient(ellipse at center, rgba(251,191,36,0.18) 0%, transparent 70%)", borderRadius: 10 }}
-                                  >
-                                    <CaseLogo imageUrl={bonusCaseInfo.imageUrl} size={56} />
-                                  </motion.div>
-                                ) : (
-                                  <div style={{ position: "relative", height: vc.containerH, overflow: "hidden", borderRadius: 10 }}>
-                                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 36, background: `linear-gradient(to bottom, ${REEL_BG}, transparent)`, zIndex: 2, pointerEvents: "none" }} />
-                                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 36, background: `linear-gradient(to top, ${REEL_BG}, transparent)`, zIndex: 2, pointerEvents: "none" }} />
-                                    <div
-                                      ref={(el) => { reelRefs.current[idx] = el; }}
-                                      style={{ display: "flex", flexDirection: "column" }}
-                                    >
-                                      {reelItems.map((item, i) => <VerticalReelItemBox key={i} item={item} height={vc.itemH} />)}
+                        <div style={{ position: "relative" }}>
+                          {/* Left inward triangle → */}
+                          <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `13px solid ${triColor}`, zIndex: 100, pointerEvents: "none" }} />
+                          {/* Right inward triangle ← */}
+                          <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: `13px solid ${triColor}`, zIndex: 100, pointerEvents: "none" }} />
+                          <div style={{ display: "flex" }}>
+                            {reelItemsPerReel.map((reelItems, idx) => {
+                              const isBonus = bonusReelIndices.has(idx);
+                              const isNestedCase = nestedCaseBonusReelIndices.has(idx);
+                              return (
+                                <React.Fragment key={idx}>
+                                  {idx > 0 && (
+                                    /* Diamond separator between columns */
+                                    <div style={{ width: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, position: "relative" }}>
+                                      <div style={{ width: 9, height: 9, background: triColor, transform: "rotate(45deg)", opacity: 0.75 }} />
                                     </div>
-                                    {modalMode === "bonus_orb" && (isBonus || isNestedCase) && (
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                                    {modalMode === "bonus_case" && bonusCaseInfo && isNestedCase ? (
                                       <motion.div
-                                        key={`orb-overlay-col-${idx}`}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        transition={{ duration: 0.2 }}
-                                        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(1px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20, borderRadius: 10 }}
+                                        key="bonus-case-display"
+                                        initial={{ opacity: 0, scale: 0.6 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ type: "spring", stiffness: 180, damping: 14 }}
+                                        style={{ height: vc.containerH, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "radial-gradient(ellipse at center, rgba(251,191,36,0.18) 0%, transparent 70%)" }}
                                       >
-                                        <motion.img
-                                          key="gold-orb-col"
-                                          src={legendaryOrbSrc}
-                                          alt="Bonus Orb"
-                                          initial={{ scale: 0.4, opacity: 0 }}
-                                          animate={{ scale: 1, opacity: 1 }}
-                                          transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.05 }}
-                                          style={{ width: 56, height: 56, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 0 18px rgba(251,191,36,0.9))" }}
-                                        />
+                                        <CaseLogo imageUrl={bonusCaseInfo.imageUrl} size={56} />
+                                      </motion.div>
+                                    ) : (
+                                      <div style={{ position: "relative", height: vc.containerH, overflow: "hidden" }}>
+                                        <div
+                                          ref={(el) => { reelRefs.current[idx] = el; }}
+                                          style={{ display: "flex", flexDirection: "column" }}
+                                        >
+                                          {reelItems.map((item, i) => <VerticalReelItemBox key={i} item={item} height={vc.itemH} />)}
+                                        </div>
+                                        {modalMode === "bonus_orb" && (isBonus || isNestedCase) && (
+                                          <motion.div
+                                            key={`orb-overlay-col-${idx}`}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ duration: 0.2 }}
+                                            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(1px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
+                                          >
+                                            <motion.img
+                                              key="gold-orb-col"
+                                              src={legendaryOrbSrc}
+                                              alt="Bonus Orb"
+                                              initial={{ scale: 0.4, opacity: 0 }}
+                                              animate={{ scale: 1, opacity: 1 }}
+                                              transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.05 }}
+                                              style={{ width: 56, height: 56, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 0 18px rgba(251,191,36,0.9))" }}
+                                            />
+                                          </motion.div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {modalMode === "bonus_spin" && isNestedCase && (
+                                      <div className="text-center text-[10px] font-bold animate-pulse mt-1 uppercase" style={{ color: "#fbbf24" }}>🎁 Super Summer!</div>
+                                    )}
+                                    {modalMode === "result" && wonItems[idx] && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="text-center mt-1.5 px-1"
+                                      >
+                                        <p className="text-[11px] font-semibold text-white/90 truncate leading-tight">{wonItems[idx].name}</p>
+                                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                                          <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">{fmt(wonItems[idx].value)} <GemIcon size={10} /></span>
+                                        </div>
                                       </motion.div>
                                     )}
                                   </div>
-                                )}
-                                {modalMode === "bonus_spin" && isNestedCase && (
-                                  <div className="text-center text-[10px] font-bold animate-pulse mt-1 uppercase" style={{ color: "#fbbf24" }}>🎁 Super Summer!</div>
-                                )}
-                                {modalMode === "result" && wonItems[idx] && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 4 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.25 }}
-                                    className="text-center mt-1.5 px-1"
-                                  >
-                                    <p className="text-[11px] font-semibold text-white/90 truncate leading-tight">{wonItems[idx].name}</p>
-                                    <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                                      <span className="text-[11px] font-bold text-yellow-400">{fmt(wonItems[idx].value)}</span>
-                                      <GemIcon size={10} />
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })()
