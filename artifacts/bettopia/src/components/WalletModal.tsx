@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Wallet, Loader2, CheckCircle2, Copy, Clock, AlertCircle } from "lucide-react";
+import { Wallet, Loader2, CheckCircle2, Copy, Clock } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 import { useAuth } from "../contexts/AuthContext";
 import dlSrc from "@assets/dl_1775514218033.webp";
 
 type Tab = "deposit" | "withdraw";
-type DepositStep = "form" | "loading" | "waiting_bot" | "bot_ready" | "expired";
+type DepositStep = "form" | "loading" | "waiting_bot" | "bot_ready";
 type WithdrawStep = "form" | "loading" | "done";
 
 const STORAGE_KEY = "bettopia_deposit_session";
@@ -106,7 +106,10 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
     if (depositSession && remaining === 0) {
       stopPolling();
       clearSession();
-      setDepositStep("expired");
+      setDepositSession(null);
+      setDepositBot(null);
+      setDepositStep("form");
+      toast({ title: "Deposit session expired", description: "Your 2-minute window has passed. Start a new deposit.", variant: "destructive" });
     }
   }, [remaining, depositSession]);
 
@@ -360,20 +363,6 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
                 </div>
               )}
 
-              {depositStep === "expired" && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
-                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                    <span className="text-red-400 text-sm font-semibold">Deposit session expired</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Your 2-minute deposit window has passed. Start a new deposit to try again.
-                  </p>
-                  <Button onClick={resetDeposit} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5">
-                    Try Again
-                  </Button>
-                </div>
-              )}
             </div>
           )}
 
