@@ -30,7 +30,7 @@ function loadSession(): DepositSession | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const s: DepositSession = JSON.parse(raw);
-    if (new Date(s.expiresAt) <= new Date()) {
+    if (new Date(s.expiresAt).getTime() <= Date.now()) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -46,23 +46,6 @@ function saveSession(s: DepositSession) {
 
 function clearSession() {
   localStorage.removeItem(STORAGE_KEY);
-}
-
-function useCountdown(expiresAt: string | null) {
-  const [remaining, setRemaining] = useState<number>(0);
-
-  useEffect(() => {
-    if (!expiresAt) { setRemaining(0); return; }
-    const tick = () => {
-      const ms = new Date(expiresAt).getTime() - Date.now();
-      setRemaining(Math.max(0, ms));
-    };
-    tick();
-    const id = setInterval(tick, 500);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  return remaining;
 }
 
 function formatCountdown(ms: number) {
@@ -81,54 +64,78 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
   const [depositStep, setDepositStep] = useState<DepositStep>("form");
   const [depositSession, setDepositSession] = useState<DepositSession | null>(null);
   const [depositBot, setDepositBot] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [wGrowId, setWGrowId] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>("form");
 
-  const remaining = useCountdown(depositSession?.expiresAt ?? null);
+  const stopPolling = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
 
-  // Restore session from localStorage on mount / open
+  const stopTimer = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+
+  const resetDeposit = () => {
+    stopPolling();
+    stopTimer();
+    clearSession();
+    setGrowId("");
+    setDepositStep("form");
+    setDepositSession(null);
+    setDepositBot(null);
+    setRemaining(0);
+  };
+
+  const resetWithdraw = () => { setWGrowId(""); setWithdrawAmount(""); setWithdrawStep("form"); };
+
+  // Start countdown for a session — handles expiry internally
+  const startTimer = (session: DepositSession) => {
+    stopTimer();
+    const tick = () => {
+      const ms = new Date(session.expiresAt).getTime() - Date.now();
+      if (ms <= 0) {
+        stopTimer();
+        stopPolling();
+        clearSession();
+        setDepositSession(null);
+        setDepositBot(null);
+        setDepositStep("form");
+        setRemaining(0);
+        toast({
+          title: "Deposit session expired",
+          description: "Your 2-minute window has passed. Start a new deposit.",
+          variant: "destructive",
+        });
+      } else {
+        setRemaining(ms);
+      }
+    };
+    tick();
+    timerRef.current = setInterval(tick, 500);
+  };
+
+  // Restore session on modal open
   useEffect(() => {
     if (open) {
       const s = loadSession();
       if (s) {
         setDepositSession(s);
         setDepositStep("waiting_bot");
+        startTimer(s);
         startPolling(s.txId);
       }
     }
+    return () => {
+      if (!open) { stopTimer(); stopPolling(); }
+    };
   }, [open]);
 
-  // Auto-expire when countdown hits 0
-  useEffect(() => {
-    if (depositSession && remaining === 0) {
-      stopPolling();
-      clearSession();
-      setDepositSession(null);
-      setDepositBot(null);
-      setDepositStep("form");
-      toast({ title: "Deposit session expired", description: "Your 2-minute window has passed. Start a new deposit.", variant: "destructive" });
-    }
-  }, [remaining, depositSession]);
-
-  const stopPolling = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-  };
-
-  const resetDeposit = () => {
-    stopPolling();
-    clearSession();
-    setGrowId("");
-    setDepositStep("form");
-    setDepositSession(null);
-    setDepositBot(null);
-  };
-
-  const resetWithdraw = () => { setWGrowId(""); setWithdrawAmount(""); setWithdrawStep("form"); };
-
-  useEffect(() => () => stopPolling(), []);
+  useEffect(() => () => { stopPolling(); stopTimer(); }, []);
 
   const startPolling = (txId: number) => {
     stopPolling();
@@ -141,13 +148,20 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
         const data = await res.json();
         if (data.status === "completed") {
           stopPolling();
+          stopTimer();
           clearSession();
           updateUser({ balance: undefined });
-          setDepositStep("bot_ready");
+          setDepositSession(null);
+          setDepositBot(null);
+          setDepositStep("form");
+          setRemaining(0);
+          toast({
+            title: "Deposit received!",
+            description: "Your balance has been updated.",
+          });
         } else if (data.botGrowId) {
           setDepositBot(data.botGrowId);
           setDepositStep("bot_ready");
-          stopPolling();
         }
       } catch {}
     }, 3000);
@@ -182,6 +196,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
       saveSession(session);
       setDepositSession(session);
       setDepositStep("waiting_bot");
+      startTimer(session);
       startPolling(data.transactionId);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -234,7 +249,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
   const isExpiringSoon = remaining > 0 && remaining < 30_000;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) { stopPolling(); } onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { stopTimer(); stopPolling(); } onOpenChange(v); }}>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-border bg-[#1a1a2e]" style={{ zIndex: 9999 }}>
         <div className="px-6 pt-5 pb-1">
           <DialogTitle className="flex items-center gap-2 text-lg font-bold text-white mb-4">
@@ -299,7 +314,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
 
               {(depositStep === "waiting_bot" || depositStep === "bot_ready") && depositSession && (
                 <div className="space-y-4">
-                  {/* Countdown timer */}
+                  {/* Countdown */}
                   {remaining > 0 && (
                     <div className={`flex items-center justify-between rounded-lg px-3 py-2 border ${
                       isExpiringSoon
@@ -309,7 +324,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
                       <div className="flex items-center gap-2">
                         <Clock className={`w-4 h-4 shrink-0 ${isExpiringSoon ? "text-red-400 animate-pulse" : "text-yellow-400"}`} />
                         <span className={`text-sm font-semibold ${isExpiringSoon ? "text-red-400" : "text-yellow-400"}`}>
-                          {depositStep === "bot_ready" ? "Trade window" : "Session expires in"}
+                          Time remaining
                         </span>
                       </div>
                       <span className={`font-mono font-bold text-lg ${isExpiringSoon ? "text-red-400" : "text-white"}`}>
@@ -328,7 +343,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
                   {depositStep === "bot_ready" && (
                     <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
                       <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                      <span className="text-green-400 text-sm font-semibold">Bot is in the world!</span>
+                      <span className="text-green-400 text-sm font-semibold">Bot is in the world — trade it now!</span>
                     </div>
                   )}
 
@@ -362,7 +377,6 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
                   </Button>
                 </div>
               )}
-
             </div>
           )}
 
