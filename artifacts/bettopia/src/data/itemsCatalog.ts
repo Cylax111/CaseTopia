@@ -117,6 +117,7 @@ import legenSeedSrc from "@assets/legen_seed_1775674820999.webp";
 import darySeedSrc from "@assets/dary_seed_1775674857884.webp";
 import mutatedSeedSrc from "@assets/mutated_seed_1775674905453.webp";
 import skullLauncherSrc from "@assets/skull_launcher_1775674934198.webp";
+import teenyAngelWingsSrc from "@assets/teeny_angel_wings_1775747483643.webp";
 
 export interface CatalogItem {
   id: string;
@@ -952,6 +953,13 @@ export const ITEMS_CATALOG: CatalogItem[] = [
     imageUrl: skullLauncherSrc,
     value: 35,
     color: "#78716c",
+  },
+  {
+    id: "teeny_angel_wings",
+    name: "Teeny Angel Wings",
+    imageUrl: teenyAngelWingsSrc,
+    value: 0.05,
+    color: "#e0e0e0",
   },
 ];
 
