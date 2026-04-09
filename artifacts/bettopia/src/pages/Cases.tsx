@@ -1610,8 +1610,37 @@ export default function Cases() {
                                       <div style={{ width: 26, height: 14, background: triColor, clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
                                     </div>
                                   )}
-                                  <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-                                    {modalMode === "bonus_case" && bonusCaseInfo && isNestedCase ? (
+                                  <div style={{ flex: 1, minWidth: 0, position: "relative", overflow: "visible" }}>
+                                    {modalMode === "result" && wonItems[idx] ? (
+                                      /* Multi-case result: reel fades away, won item zooms in with name+price */
+                                      <motion.div
+                                        key={`col-result-${idx}`}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ duration: 0.18 }}
+                                        style={{ height: vc.containerH, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}
+                                      >
+                                        <motion.div
+                                          initial={{ scale: 0.72, opacity: 0 }}
+                                          animate={{ scale: 1, opacity: 1 }}
+                                          transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.06 }}
+                                          style={{ filter: `drop-shadow(0 0 14px ${RARITY_HEX[rarityFromChance(wonItems[idx].chance)] ?? "#888"}aa)` }}
+                                        >
+                                          <ItemThumbnail item={wonItems[idx]} size="md" />
+                                        </motion.div>
+                                        <motion.div
+                                          initial={{ opacity: 0, y: 4 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          transition={{ duration: 0.2, delay: 0.14 }}
+                                          className="text-center px-1"
+                                        >
+                                          <p className="text-[11px] font-semibold text-white/90 truncate leading-tight">{wonItems[idx].name}</p>
+                                          <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                                            <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">{fmt(wonItems[idx].value)} <GemIcon size={10} /></span>
+                                          </div>
+                                        </motion.div>
+                                      </motion.div>
+                                    ) : modalMode === "bonus_case" && bonusCaseInfo && isNestedCase ? (
                                       <motion.div
                                         key="bonus-case-display"
                                         initial={{ opacity: 0, scale: 0.6 }}
@@ -1652,19 +1681,6 @@ export default function Cases() {
                                     )}
                                     {modalMode === "bonus_spin" && isNestedCase && (
                                       <div className="text-center text-[10px] font-bold animate-pulse mt-1 uppercase" style={{ color: "#fbbf24" }}>🎁 Super Summer!</div>
-                                    )}
-                                    {modalMode === "result" && wonItems[idx] && (
-                                      <motion.div
-                                        initial={{ opacity: 0, y: 4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="text-center mt-1.5 px-1"
-                                      >
-                                        <p className="text-[11px] font-semibold text-white/90 truncate leading-tight">{wonItems[idx].name}</p>
-                                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                                          <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">{fmt(wonItems[idx].value)} <GemIcon size={10} /></span>
-                                        </div>
-                                      </motion.div>
                                     )}
                                   </div>
                                 </React.Fragment>
