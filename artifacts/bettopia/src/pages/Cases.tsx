@@ -1497,7 +1497,36 @@ export default function Cases() {
 
             {/* Reel — always visible. Static 11-item preview in info/result mode, animated 60-item reel while opening */}
             <div className="border-y border-border/20" style={{ background: REEL_BG }}>
-              {modalMode === "info" || (modalMode === "result" && reelItemsPerReel.length === 0) ? (
+              {modalMode === "result" && openCount === 1 && wonItems[0] ? (
+                /* Single-case result: other items vanish, won item stays centered with name+price */
+                <motion.div
+                  key="single-result"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ height: 168, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.82, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.06 }}
+                    style={{ filter: `drop-shadow(0 0 18px ${RARITY_HEX[rarityFromChance(wonItems[0].chance)] ?? "#888"}aa)` }}
+                  >
+                    <ItemThumbnail item={wonItems[0]} size="lg" />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: 0.14 }}
+                    className="text-center"
+                  >
+                    <p className="text-sm font-semibold text-white/90 leading-tight">{wonItems[0].name}</p>
+                    <div className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                      {fmt(wonItems[0].value)} <GemIcon size={12} />
+                    </div>
+                  </motion.div>
+                </motion.div>
+              ) : modalMode === "info" || (modalMode === "result" && reelItemsPerReel.length === 0) ? (
                 openCount === 1 ? (
                 /* Single horizontal reel preview */
                 <div style={{ position: "relative", height: 168 }}>
