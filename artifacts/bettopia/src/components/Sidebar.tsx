@@ -6,7 +6,7 @@ import { useSSE } from "../contexts/SSEContext";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
-import { Send, X } from "lucide-react";
+import { Send, X, Smile } from "lucide-react";
 import { Link } from "wouter";
 import { UserAvatar } from "./UserAvatar";
 import { UserProfileModal } from "./UserProfileModal";
@@ -19,11 +19,17 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+const CHAT_EMOJIS: { code: string; src: string; label: string }[] = [
+  { code: ":laugh:", src: "/emojis/laugh.png", label: "Laugh" },
+];
+
 function renderMessageWithMentions(
   text: string,
   onMentionClick: (username: string) => void
 ): React.ReactNode[] {
-  const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+  const emojiCodes = CHAT_EMOJIS.map((e) => e.code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const splitPattern = new RegExp(`(@[a-zA-Z0-9_]+|${emojiCodes.join("|")})`, "g");
+  const parts = text.split(splitPattern);
   return parts.map((part, i) => {
     if (/^@[a-zA-Z0-9_]+$/.test(part)) {
       const username = part.slice(1);
@@ -39,6 +45,19 @@ function renderMessageWithMentions(
         >
           {part}
         </button>
+      );
+    }
+    const emoji = CHAT_EMOJIS.find((e) => e.code === part);
+    if (emoji) {
+      return (
+        <img
+          key={i}
+          src={emoji.src}
+          alt={emoji.label}
+          title={emoji.code}
+          className="inline-block w-5 h-5 align-middle mx-0.5"
+          style={{ imageRendering: "pixelated" }}
+        />
       );
     }
     return <React.Fragment key={i}>{part}</React.Fragment>;
@@ -62,7 +81,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [onlineCount, setOnlineCount] = useState(1);
 
   const { on } = useSSE();
@@ -187,6 +209,23 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
     }
   }, []);
 
+  const insertEmoji = useCallback((code: string) => {
+    setMessage((prev) => prev + code);
+    setEmojiPickerOpen(false);
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!emojiPickerOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setEmojiPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [emojiPickerOpen]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -279,25 +318,62 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
         <div className="p-4 border-t border-sidebar-border pb-20 lg:pb-4">
           {user ? (
-            <form onSubmit={handleSend} className="flex gap-2">
-              <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Say something..."
-                className="flex-1 bg-input/50 text-base"
-                maxLength={200}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-              />
-              <Button type="submit" size="icon" disabled={!message.trim() || sendMessage.isPending || cooldown > 0} className="relative shrink-0 h-10 w-10">
-                {cooldown > 0 ? (
-                  <span className="text-xs font-bold">{cooldown}</span>
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </form>
+            <div className="relative">
+              {emojiPickerOpen && (
+                <div
+                  ref={emojiPickerRef}
+                  className="absolute bottom-full mb-2 left-0 bg-card border border-border rounded-xl p-2 shadow-xl z-10 flex flex-wrap gap-1.5"
+                  style={{ minWidth: "120px" }}
+                >
+                  {CHAT_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji.code}
+                      type="button"
+                      onClick={() => insertEmoji(emoji.code)}
+                      title={emoji.label}
+                      className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-primary/20 transition-colors"
+                    >
+                      <img
+                        src={emoji.src}
+                        alt={emoji.label}
+                        className="w-7 h-7"
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <form onSubmit={handleSend} className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Say something..."
+                  className="flex-1 bg-input/50 text-base"
+                  maxLength={200}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setEmojiPickerOpen((v) => !v)}
+                  className="shrink-0 h-10 w-10 text-muted-foreground hover:text-primary"
+                  title="Emojis"
+                >
+                  <Smile className="h-4 w-4" />
+                </Button>
+                <Button type="submit" size="icon" disabled={!message.trim() || sendMessage.isPending || cooldown > 0} className="relative shrink-0 h-10 w-10">
+                  {cooldown > 0 ? (
+                    <span className="text-xs font-bold">{cooldown}</span>
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </form>
+            </div>
           ) : (
             <Link href="/login" className="flex items-center justify-center w-full bg-input/50 text-muted-foreground text-sm p-2 rounded-md hover:bg-input hover:text-foreground transition-colors">
               Login to chat
