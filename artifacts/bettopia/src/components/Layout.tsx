@@ -12,7 +12,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     let prevWidth = window.innerWidth;
     const handleResize = () => {
       const newWidth = window.innerWidth;
-      if (newWidth !== prevWidth && newWidth < 1024) {
+      if (Math.abs(newWidth - prevWidth) > 100 && newWidth < 1024) {
         setSidebarOpen(false);
       }
       prevWidth = newWidth;
@@ -20,6 +20,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const isMobile = window.innerWidth < 1024;
+    if (sidebarOpen && isMobile) {
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, [sidebarOpen]);
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground dark">

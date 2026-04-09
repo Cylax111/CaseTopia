@@ -277,7 +277,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
         </ScrollArea>
 
-        <div className="p-4 border-t border-sidebar-border" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+        <div className="p-4 border-t border-sidebar-border pb-20 lg:pb-4">
           {user ? (
             <form onSubmit={handleSend} className="flex gap-2">
               <Input
