@@ -30,6 +30,7 @@ const CHAT_EMOJIS: { code: string; src: string; label: string }[] = [
   { code: ":exhausted:", src: "/emojis/exhausted.png", label: "Exhausted" },
   { code: ":devil:", src: "/emojis/devil.png", label: "Devil" },
   { code: ":heart:", src: "/emojis/heart.webp", label: "Heart" },
+  { code: ":lucky:", src: "/emojis/lucky.png", label: "Lucky" },
 ];
 
 function renderMessageWithMentions(
