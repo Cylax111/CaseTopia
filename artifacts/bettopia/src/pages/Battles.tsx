@@ -40,11 +40,13 @@ export default function Battles() {
   const [isModifyMode, setIsModifyMode] = useState(false);
 
   const GAME_MODES = [
-    { value: "1v1",   label: "1 vs 1",     players: 2, teams: 2, ppTeam: 1, desc: "2 players, winner takes all" },
-    { value: "1v1v1", label: "1 vs 1 vs 1", players: 3, teams: 3, ppTeam: 1, desc: "3 players, FFA" },
-    { value: "2v2",   label: "2 vs 2",     players: 4, teams: 2, ppTeam: 2, desc: "2 teams of 2" },
-    { value: "2v2v2", label: "2 vs 2 vs 2", players: 6, teams: 3, ppTeam: 2, desc: "3 teams of 2" },
-    { value: "3v3",   label: "3 vs 3",     players: 6, teams: 2, ppTeam: 3, desc: "2 teams of 3" },
+    { value: "1v1",         label: "1 vs 1",              players: 2, teams: 2, ppTeam: 1, desc: "2 players, winner takes all" },
+    { value: "1v1v1",       label: "1 vs 1 vs 1",         players: 3, teams: 3, ppTeam: 1, desc: "3 players, FFA" },
+    { value: "1v1v1v1",     label: "1 vs 1 vs 1 vs 1",    players: 4, teams: 4, ppTeam: 1, desc: "4 players, FFA" },
+    { value: "1v1v1v1v1v1", label: "1v1v1v1v1v1",         players: 6, teams: 6, ppTeam: 1, desc: "6 players, FFA" },
+    { value: "2v2",         label: "2 vs 2",              players: 4, teams: 2, ppTeam: 2, desc: "2 teams of 2" },
+    { value: "2v2v2",       label: "2 vs 2 vs 2",         players: 6, teams: 3, ppTeam: 2, desc: "3 teams of 2" },
+    { value: "3v3",         label: "3 vs 3",              players: 6, teams: 2, ppTeam: 3, desc: "2 teams of 3" },
   ];
 
   // Battle screen state
@@ -399,12 +401,13 @@ const CREATE_BATTLE_TYPES = [
 ];
 
 const CREATE_GAME_MODES = [
-  { value: "1v1",     label: "1v1",     players: 2 },
-  { value: "1v1v1",   label: "1v1v1",   players: 3 },
-  { value: "1v1v1v1", label: "1v1v1v1", players: 4 },
-  { value: "2v2",     label: "2v2",     players: 4 },
-  { value: "2v2v2",   label: "2v2v2",   players: 6 },
-  { value: "3v3",     label: "3v3",     players: 6 },
+  { value: "1v1",          label: "1v1",          players: 2 },
+  { value: "1v1v1",        label: "1v1v1",        players: 3 },
+  { value: "1v1v1v1",      label: "1v1v1v1",      players: 4 },
+  { value: "1v1v1v1v1v1",  label: "1v1v1v1v1v1",  players: 6 },
+  { value: "2v2",          label: "2v2",          players: 4 },
+  { value: "2v2v2",        label: "2v2v2",        players: 6 },
+  { value: "3v3",          label: "3v3",          players: 6 },
 ];
 
 function CreateBattleView({

@@ -10,11 +10,13 @@ const router: IRouter = Router();
 // ─── Game mode helpers ─────────────────────────────────────────────────────
 
 const GAME_MODES: Record<string, { maxPlayers: number; teams: number; playersPerTeam: number }> = {
-  "1v1":   { maxPlayers: 2, teams: 2, playersPerTeam: 1 },
-  "1v1v1": { maxPlayers: 3, teams: 3, playersPerTeam: 1 },
-  "2v2":   { maxPlayers: 4, teams: 2, playersPerTeam: 2 },
-  "2v2v2": { maxPlayers: 6, teams: 3, playersPerTeam: 2 },
-  "3v3":   { maxPlayers: 6, teams: 2, playersPerTeam: 3 },
+  "1v1":        { maxPlayers: 2, teams: 2, playersPerTeam: 1 },
+  "1v1v1":      { maxPlayers: 3, teams: 3, playersPerTeam: 1 },
+  "1v1v1v1":    { maxPlayers: 4, teams: 4, playersPerTeam: 1 },
+  "1v1v1v1v1v1":{ maxPlayers: 6, teams: 6, playersPerTeam: 1 },
+  "2v2":        { maxPlayers: 4, teams: 2, playersPerTeam: 2 },
+  "2v2v2":      { maxPlayers: 6, teams: 3, playersPerTeam: 2 },
+  "3v3":        { maxPlayers: 6, teams: 2, playersPerTeam: 3 },
 };
 
 function getTeamIndex(slotIndex: number, gameMode: string): number {
