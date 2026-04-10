@@ -1,16 +1,15 @@
 -- BetTopia Deposit Bot
 -- Lucifer v2.83 p2
--- Bot sends /trade (growId) every 10 seconds after warping to the deposit world.
--- No player detection needed -- if they're not there yet it fails silently.
--- Inventory polling detects when the trade is accepted and items are received.
+-- Player drops DLs/BGLs/WLs on the ground, bot walks over them to collect.
+-- Inventory polling confirms receipt, then credits the deposit.
 
 local WEBSITE_URL = "https://case-topia.replit.app"
 local BOT_SECRET  = "0d68e6d0b7388733c797bfbe76ad3e5e2f3917de52365871ac1f3d7685f8037e"
 local BOT_GROW_ID = "zPlaysGT"
 
-local ITEM_BGL = 4532 -- Blue Gem Lock  (100 DL each)
-local ITEM_DL  = 1796 -- Diamond Lock   (1 DL each)
-local ITEM_WL  = 242  -- World Lock     (0.01 DL each)
+local ITEM_BGL = 4532 -- Blue Gem Lock  (= 100 DL)
+local ITEM_DL  = 1796 -- Diamond Lock   (= 1 DL)
+local ITEM_WL  = 242  -- World Lock     (= 0.01 DL)
 
 local claimed_worlds = {}
 local processing_wd  = {}
@@ -48,6 +47,27 @@ local function inv_snapshot(bot)
     return inv:getItemCount(ITEM_BGL), inv:getItemCount(ITEM_DL), inv:getItemCount(ITEM_WL)
 end
 
+-- Walk over every dropped DL/BGL/WL in the world so Growtopia auto-collects them
+local function collect_dropped_items(bot)
+    local ok, world = pcall(function() return bot:getWorld() end)
+    if not ok or not world then return end
+    local ok2, objs = pcall(function() return world:getObjects() end)
+    if not ok2 or not objs then return end
+    local ok3, sz = pcall(function() return objs:size() end)
+    if not ok3 or not sz then return end
+    for i = 1, sz do
+        local ok4, obj = pcall(function() return objs:get(i) end)
+        if ok4 and obj then
+            local id = obj.id
+            if id == ITEM_BGL or id == ITEM_DL or id == ITEM_WL then
+                print("[COLLECT] Item " .. id .. " at " .. tostring(obj.x) .. "," .. tostring(obj.y))
+                pcall(function() bot:moveTo(obj.x, obj.y) end)
+                sleep(300)
+            end
+        end
+    end
+end
+
 local function complete_deposit(bot, dep, totalDL)
     if totalDL <= 0 then
         print("[DEPOSIT] Nothing received - cancelling " .. dep.world)
@@ -75,14 +95,17 @@ local function check_active_deposit(bot)
     local dep = activeDeposit
     local now = os.time()
 
-    -- Check expiry
+    -- Expire
     if dep.expiresAt > 0 and now >= dep.expiresAt then
         print("[DEPOSIT] Timer expired for " .. dep.world)
         complete_deposit(bot, dep, dep.totalDL or 0)
         return
     end
 
-    -- Check if inventory increased (trade was accepted)
+    -- Walk over any dropped items
+    collect_dropped_items(bot)
+
+    -- Check if inventory increased since last check
     local curBGL, curDL, curWL = inv_snapshot(bot)
     local gainBGL = curBGL - dep.prevBGL
     local gainDL  = curDL  - dep.prevDL
@@ -94,30 +117,15 @@ local function check_active_deposit(bot)
         dep.prevBGL = curBGL
         dep.prevDL  = curDL
         dep.prevWL  = curWL
-        print("[DEPOSIT] Trade complete! +" .. gainBGL .. " BGL +" .. gainDL .. " DL +" .. gainWL .. " WL = " .. gained .. " DL")
+        dep.lastGainTime = now
+        print("[DEPOSIT] Picked up " .. gained .. " DL (total: " .. dep.totalDL .. " DL)")
+        bot:say("@" .. dep.growId .. " Got " .. gained .. " DL! Drop more or wait 5s to finish.")
+    end
+
+    -- If items were received and nothing new for 5 seconds, complete
+    if (dep.totalDL or 0) > 0 and dep.lastGainTime and now - dep.lastGainTime >= 5 then
+        print("[DEPOSIT] No new drops for 5s - completing")
         complete_deposit(bot, dep, dep.totalDL)
-        return
-    end
-
-    -- Send /trade request every 10 seconds
-    if now - (dep.lastTradeAttempt or 0) >= 10 then
-        dep.lastTradeAttempt = now
-        print("[DEPOSIT] Sending /trade " .. dep.growId)
-        bot:say("/trade " .. dep.growId)
-    end
-
-    -- Try to ready/confirm trade every 2 seconds
-    -- Test all known method names so we can see which one Lucifer supports
-    if now - (dep.lastTradeConfirm or 0) >= 2 then
-        dep.lastTradeConfirm = now
-        local r1, e1 = pcall(function() bot:acceptTrade() end)
-        local r2, e2 = pcall(function() bot:readyTrade() end)
-        local r3, e3 = pcall(function() bot:confirmTrade() end)
-        local r4, e4 = pcall(function() bot:doTrade() end)
-        print("[TRADE] accept=" .. tostring(r1) .. " " .. tostring(e1))
-        print("[TRADE] ready=" .. tostring(r2) .. " " .. tostring(e2))
-        print("[TRADE] confirm=" .. tostring(r3) .. " " .. tostring(e3))
-        print("[TRADE] do=" .. tostring(r4) .. " " .. tostring(e4))
     end
 end
 
@@ -145,20 +153,20 @@ local function poll_deposits(bot)
                 return
             end
 
-            bot:say("@" .. tostring(growId) .. " Hi! Accept my trade request and add your DLs to deposit!")
+            bot:say("@" .. tostring(growId) .. " Hi! DROP your Diamond Locks / BGLs on the ground to deposit. I will pick them up!")
 
             local prevBGL, prevDL, prevWL = inv_snapshot(bot)
             activeDeposit = {
-                world            = world,
-                growId           = tostring(growId),
-                expiresAt        = expiresAt,
-                prevBGL          = prevBGL,
-                prevDL           = prevDL,
-                prevWL           = prevWL,
-                totalDL          = 0,
-                lastTradeAttempt = 0,
+                world        = world,
+                growId       = tostring(growId),
+                expiresAt    = expiresAt,
+                prevBGL      = prevBGL,
+                prevDL       = prevDL,
+                prevWL       = prevWL,
+                totalDL      = 0,
+                lastGainTime = 0,
             }
-            print("[DEPOSIT] Session active, will send /trade every 10s")
+            print("[DEPOSIT] Watching for dropped items in " .. world)
             return
         end
     end
