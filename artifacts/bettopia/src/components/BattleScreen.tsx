@@ -4,6 +4,7 @@ import { ArrowLeft, Package, Crown, Eye, Bot, Loader2, LogOut, Volume2, VolumeX,
 import { GemIcon } from "./GemIcon";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import goldOrbSrc from "@assets/legendary_orb_1775538080736.webp";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -204,9 +205,12 @@ function HorizReelItem({ item }: { item: BattleItem }) {
 
 // ─── Horizontal Reel — exact visual match to Cases.tsx single-open reel ───────
 
+const RARE_ORB_THRESHOLD = 3; // ≤3% chance triggers gold orb
+
 interface HorizReelProps {
   caseItems: BattleItem[];
   result: BattleItem;
+  resultChance?: number;
   spin: boolean;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
@@ -215,12 +219,13 @@ interface HorizReelProps {
   teamHex: string;
 }
 
-function HorizReel({ caseItems, result, spin, audioCtx, mutedRef, isWinner, showWinner }: HorizReelProps) {
+function HorizReel({ caseItems, result, resultChance, spin, audioCtx, mutedRef, isWinner, showWinner }: HorizReelProps) {
   const strip = useMemo(() => buildStrip(caseItems, result), []);
   const stripRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
   const lastTickIdx = useRef(-1);
   const hasSpun = useRef(false);
+  const [showOrb, setShowOrb] = useState(false);
 
   // Spin effect
   useEffect(() => {
@@ -267,13 +272,20 @@ function HorizReel({ caseItems, result, spin, audioCtx, mutedRef, isWinner, show
     };
   }, [spin]);
 
-  // Stop effect — snap to exact result position
+  // Stop effect — snap to exact result position and trigger orb if rare
   useEffect(() => {
     if (spin || !stripRef.current || !hasSpun.current) return;
     cancelAnimationFrame(rafRef.current);
     stripRef.current.style.transition = `transform 300ms cubic-bezier(0.25, 0, 0, 1)`;
     stripRef.current.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
     if (audioCtx) playStopClick(audioCtx, mutedRef.current);
+    // Show gold orb for rare items (≤3%)
+    if (resultChance !== undefined && resultChance <= RARE_ORB_THRESHOLD) {
+      setTimeout(() => {
+        setShowOrb(true);
+        setTimeout(() => setShowOrb(false), 1800);
+      }, 320);
+    }
   }, [spin]);
 
   const winnerGlow = showWinner && isWinner ? `drop-shadow(0 0 12px ${LINE_COLOR}cc)` : undefined;
@@ -303,6 +315,27 @@ function HorizReel({ caseItems, result, spin, audioCtx, mutedRef, isWinner, show
       >
         {strip.map((item, i) => <HorizReelItem key={i} item={item} />)}
       </div>
+      {/* Gold orb overlay for rare items (≤3%) */}
+      <AnimatePresence>
+        {showOrb && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.4 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.3 }}
+            transition={{ duration: 0.35 }}
+            style={{ position: "absolute", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255, 200, 50, 0.12)", pointerEvents: "none" }}
+          >
+            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(255,200,50,0.45) 0%, transparent 70%)", pointerEvents: "none" }} />
+            <motion.img
+              src={goldOrbSrc}
+              alt="orb"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.2, ease: "linear", repeat: Infinity }}
+              style={{ width: 72, height: 72, filter: "drop-shadow(0 0 20px #ffd700) drop-shadow(0 0 40px #ffa500)", zIndex: 1 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -313,6 +346,7 @@ interface PlayerColProps {
   player: BattlePlayer;
   caseItems: BattleItem[];
   currentRoundResult: BattleItem | null;
+  currentRoundResultChance?: number;
   revealedItems: { item: BattleItem; chance?: number }[];
   spinning: boolean;
   isWinner: boolean;
@@ -323,7 +357,7 @@ interface PlayerColProps {
   mutedRef: React.MutableRefObject<boolean>;
 }
 
-function PlayerColumn({ player, caseItems, currentRoundResult, revealedItems, spinning, isWinner, isLoser, showWinner, round, audioCtx, mutedRef }: PlayerColProps) {
+function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, spinning, isWinner, isLoser, showWinner, round, audioCtx, mutedRef }: PlayerColProps) {
   const tc = TEAM_COLORS[player.teamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
   const rc = currentRoundResult ? (RARITY_COLOR[currentRoundResult.rarity] ?? "#888") : undefined;
 
@@ -349,6 +383,7 @@ function PlayerColumn({ player, caseItems, currentRoundResult, revealedItems, sp
             key={round}
             caseItems={caseItems}
             result={currentRoundResult}
+            resultChance={currentRoundResultChance}
             spin={spinning}
             audioCtx={audioCtx}
             mutedRef={mutedRef}
@@ -631,6 +666,9 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     const roundResult = phase === "tiebreaker"
       ? tiebreakerRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null
       : currentRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null;
+    const roundResultChance = roundResult
+      ? (caseItemsForRound as any[]).find(ci => ci.id === roundResult.id || (ci.name === roundResult.name && ci.value === roundResult.value))?.chance
+      : undefined;
     const revealedItems = rounds.slice(0, revealedRounds).map((r, ri) => {
       const item = r.results.find(res => String(res.userId) === String(player.userId))?.item;
       if (!item) return null;
@@ -644,6 +682,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         player={player}
         caseItems={caseItemsForRound}
         currentRoundResult={roundResult}
+        currentRoundResultChance={roundResultChance}
         revealedItems={revealedItems}
         spinning={(spinning && phase === "playing") || tiebreakerSpinning}
         isWinner={isWinner}
