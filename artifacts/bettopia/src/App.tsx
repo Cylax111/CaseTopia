@@ -24,6 +24,7 @@ import Crash from "./pages/Crash";
 import Mines from "./pages/Mines";
 import Tower from "./pages/Cross";
 import DailyClaim from "./pages/DailyClaim";
+import TrampDay from "./pages/TrampDay";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ function Router() {
       <Route path="/mines" component={Mines} />
       <Route path="/tower" component={Tower} />
       <Route path="/daily" component={DailyClaim} />
+      <Route path="/tramp-day" component={TrampDay} />
       <Route path="/profile" component={Profile} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

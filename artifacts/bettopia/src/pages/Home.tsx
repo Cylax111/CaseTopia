@@ -550,6 +550,23 @@ export default function Home() {
               </div>
             </Link>
 
+            {/* Tramp Day */}
+            <Link href="/tramp-day">
+              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer bg-card">
+                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent z-10" />
+                <div className="absolute inset-0 flex items-center justify-center z-0">
+                  <div className="text-center opacity-20 group-hover:opacity-40 transition-opacity select-none">
+                    <div className="text-4xl">🎰</div>
+                    <div className="text-xs font-bold mt-1 tracking-widest">SLOT</div>
+                  </div>
+                </div>
+                <div className="absolute bottom-4 left-4 z-20">
+                  <h3 className="text-xl font-bold group-hover:text-primary transition-colors">Tramp Day</h3>
+                  <p className="text-xs text-muted-foreground">BGaming</p>
+                </div>
+              </div>
+            </Link>
+
           </div>
         </div>
 
