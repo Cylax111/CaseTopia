@@ -431,6 +431,7 @@ function CreateBattleView({
 }) {
   const [caseSearch, setCaseSearch] = useState("");
   const [caseCategory, setCaseCategory] = useState<"original" | "community" | "favourite">("original");
+  const [borrowOpen, setBorrowOpen] = useState(false);
   const { formatBalance } = useCurrency();
 
   const favouriteIds = (() => {
@@ -688,41 +689,61 @@ function CreateBattleView({
                   )}
                 </button>
               ))}
-            </div>
-          </div>
 
-          {/* Borrow */}
-          <div className="bg-card/60 border border-border rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xl font-bold">{borrowPercent}%</span>
-              {borrowPercent > 0 && (
-                <span className="text-xs text-orange-300 font-semibold">You receive {100 - borrowPercent}% of winnings</span>
+              {/* Borrow toggle button */}
+              <button
+                onClick={() => {
+                  const next = !borrowOpen;
+                  setBorrowOpen(next);
+                  if (!next) setBorrowPercent(0);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${
+                  borrowOpen
+                    ? "border-orange-500 bg-orange-500/15 text-orange-300"
+                    : "border-border bg-background/40 text-muted-foreground hover:border-orange-500/40 hover:text-foreground"
+                }`}
+              >
+                <span className="text-base leading-none">💸</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold leading-none mb-0.5">Borrow</div>
+                  <div className="text-xs opacity-65 leading-snug">
+                    {borrowPercent > 0 ? `${borrowPercent}% borrowed — you receive ${100 - borrowPercent}% of winnings` : "Pay less, win less"}
+                  </div>
+                </div>
+                {borrowOpen && (
+                  <div className="ml-auto w-4 h-4 rounded-full border-2 border-current flex items-center justify-center flex-shrink-0">
+                    <div className="w-2 h-2 rounded-full bg-current" />
+                  </div>
+                )}
+              </button>
+
+              {/* Borrow slider — shown when borrow is open */}
+              {borrowOpen && (
+                <div className="px-1 pt-1 pb-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-bold text-orange-300">{borrowPercent}%</span>
+                    <span className="text-xs text-muted-foreground/60">You receive {100 - borrowPercent}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    step={1}
+                    value={borrowPercent}
+                    onChange={e => setBorrowPercent(Number(e.target.value))}
+                    className="w-full h-8 appearance-none cursor-pointer borrow-slider"
+                    style={{
+                      background: `linear-gradient(to right, hsl(var(--primary)) ${(borrowPercent / 80) * 100}%, hsl(var(--border)) ${(borrowPercent / 80) * 100}%)`
+                    }}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground/40 font-medium">
+                    {[0, 20, 40, 60, 80].map(pct => (
+                      <span key={pct}>{pct}%</span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
-            <div className="relative">
-              <input
-                type="range"
-                min={0}
-                max={80}
-                step={1}
-                value={borrowPercent}
-                onChange={e => setBorrowPercent(Number(e.target.value))}
-                className="w-full h-8 rounded-full appearance-none cursor-pointer borrow-slider"
-                style={{
-                  background: `linear-gradient(to right, hsl(var(--primary)) ${(borrowPercent / 80) * 100}%, hsl(var(--border)) ${(borrowPercent / 80) * 100}%)`
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[11px] text-muted-foreground/50 font-medium">
-              {[0, 20, 40, 60, 80].map(pct => (
-                <span key={pct}>{pct}%</span>
-              ))}
-            </div>
-            {borrowPercent > 0 && (
-              <p className="text-[11px] text-muted-foreground/60 leading-snug">
-                Pay {100 - borrowPercent}% upfront. If you win, you only receive {100 - borrowPercent}% of the prize.
-              </p>
-            )}
           </div>
 
           {/* Cost + create */}
