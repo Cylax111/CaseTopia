@@ -30,6 +30,7 @@ export default function Battles() {
   const leaveBattleMutation = useLeaveBattle();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [battleFilter, setBattleFilter] = useState<"all" | "open" | "running">("all");
   const [selectedCases, setSelectedCases] = useState<string[]>([]);
   const [caseToAdd, setCaseToAdd] = useState<string>("");
   const [gameMode, setGameMode] = useState<string>("1v1");
@@ -246,10 +247,80 @@ export default function Battles() {
               </Button>
             </div>
 
+            {/* Filter tabs */}
+            {(() => {
+              const openCount = battles.filter((b: any) => b.status === "waiting").length;
+              const runningCount = battles.filter((b: any) => b.status === "running").length;
+              const allCount = openCount + runningCount;
+              const tabs = [
+                { key: "all",     label: "All",     count: allCount },
+                { key: "open",    label: "Open",    count: openCount },
+                { key: "running", label: "Running", count: runningCount },
+              ] as const;
+              return (
+                <div className="flex gap-1 bg-muted/30 border border-border rounded-xl p-1 w-fit">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setBattleFilter(tab.key)}
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                        battleFilter === tab.key
+                          ? "bg-card text-foreground shadow-sm border border-border/60"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                        battleFilter === tab.key ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">Loading battles...</div>
             ) : (
               <>
+                {/* Active battles list */}
+                {(() => {
+                  const activeBattles = battles.filter((b: any) => {
+                    if (battleFilter === "open") return b.status === "waiting";
+                    if (battleFilter === "running") return b.status === "running";
+                    return b.status === "waiting" || b.status === "running";
+                  });
+                  if (activeBattles.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-muted-foreground text-sm">
+                        {battleFilter === "open" ? "No open battles — create one!" : battleFilter === "running" ? "No battles in progress right now" : "No active battles — create one!"}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {activeBattles.map((battle: any) => {
+                        const cost = getCaseCost(battle);
+                        const alreadyJoined = battle.players.some((p: any) => p.userId === String(user?.id));
+                        return (
+                          <BattleCard
+                            key={battle.id}
+                            battle={battle}
+                            onJoin={() => handleJoin(battle.id, cost)}
+                            onSpectate={() => setSpectatingBattleId(battle.id)}
+                            joinPending={joinMutation.isPending}
+                            alreadyJoined={alreadyJoined}
+                            userId={user?.id}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Recent results */}
                 {recentBattles.length > 0 && (
                   <div className="space-y-3">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
