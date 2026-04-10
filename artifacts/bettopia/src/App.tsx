@@ -24,7 +24,9 @@ import Crash from "./pages/Crash";
 import Mines from "./pages/Mines";
 import Tower from "./pages/Cross";
 import DailyClaim from "./pages/DailyClaim";
-import TrampDay from "./pages/TrampDay";
+import SweetBonanza from "./pages/SweetBonanza";
+import SweetBonanza1000 from "./pages/SweetBonanza1000";
+import GatesOfOlympus from "./pages/GatesOfOlympus";
 
 const queryClient = new QueryClient();
 
@@ -56,7 +58,9 @@ function Router() {
       <Route path="/mines" component={Mines} />
       <Route path="/tower" component={Tower} />
       <Route path="/daily" component={DailyClaim} />
-      <Route path="/tramp-day" component={TrampDay} />
+      <Route path="/sweet-bonanza" component={SweetBonanza} />
+      <Route path="/sweet-bonanza-1000" component={SweetBonanza1000} />
+      <Route path="/gates-of-olympus" component={GatesOfOlympus} />
       <Route path="/profile" component={Profile} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

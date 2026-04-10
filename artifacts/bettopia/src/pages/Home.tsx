@@ -550,19 +550,64 @@ export default function Home() {
               </div>
             </Link>
 
-            {/* Tramp Day */}
-            <Link href="/tramp-day">
-              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer bg-card">
-                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent z-10" />
-                <div className="absolute inset-0 flex items-center justify-center z-0">
-                  <div className="text-center opacity-20 group-hover:opacity-40 transition-opacity select-none">
-                    <div className="text-4xl">🎰</div>
-                    <div className="text-xs font-bold mt-1 tracking-widest">SLOT</div>
-                  </div>
+          </div>
+        </div>
+
+        {/* Slots */}
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold">Slots</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+
+            {/* Sweet Bonanza */}
+            <Link href="/sweet-bonanza">
+              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #e91e8c 0%, #ff6b9d 40%, #ffb347 100%)" }}>
+                <img
+                  src="https://demogamesfree.pragmaticplay.net/gs2c/openGameMulti.do?gameSymbol=vs20fruitsw&lang=en&cur=EUR&lobbyUrl=about:blank"
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover opacity-0"
+                  onError={() => {}}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
+                  <span className="text-4xl">🍬</span>
+                  <span className="text-4xl">🍭</span>
                 </div>
-                <div className="absolute bottom-4 left-4 z-20">
-                  <h3 className="text-xl font-bold group-hover:text-primary transition-colors">Tramp Day</h3>
-                  <p className="text-xs text-muted-foreground">BGaming</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+                <div className="absolute bottom-3 left-3 z-20">
+                  <h3 className="text-base font-bold text-white drop-shadow">Sweet Bonanza</h3>
+                  <p className="text-xs text-white/60">Pragmatic Play</p>
+                </div>
+              </div>
+            </Link>
+
+            {/* Sweet Bonanza 1000 */}
+            <Link href="/sweet-bonanza-1000">
+              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #c0392b 0%, #e91e8c 50%, #ff69b4 100%)" }}>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
+                  <span className="text-3xl">🍬</span>
+                  <span className="text-2xl font-black text-white/80">×1000</span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+                <div className="absolute bottom-3 left-3 z-20">
+                  <h3 className="text-base font-bold text-white drop-shadow">Sweet Bonanza 1000</h3>
+                  <p className="text-xs text-white/60">Pragmatic Play</p>
+                </div>
+              </div>
+            </Link>
+
+            {/* Gates of Olympus */}
+            <Link href="/gates-of-olympus">
+              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #1a1a6e 0%, #4a0080 50%, #ffd700 100%)" }}>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
+                  <span className="text-4xl">⚡</span>
+                  <span className="text-3xl">🏛️</span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+                <div className="absolute bottom-3 left-3 z-20">
+                  <h3 className="text-base font-bold text-white drop-shadow">Gates of Olympus</h3>
+                  <p className="text-xs text-white/60">Pragmatic Play</p>
                 </div>
               </div>
             </Link>

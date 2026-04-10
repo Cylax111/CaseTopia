@@ -1,0 +1,27 @@
+import React from "react";
+import { Layout } from "../components/Layout";
+
+export default function GatesOfOlympus() {
+  return (
+    <Layout>
+      <div className="flex flex-col gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Gates of Olympus</h1>
+          <p className="text-muted-foreground text-sm">Pragmatic Play · Slot · Demo</p>
+        </div>
+        <div
+          className="w-full rounded-xl overflow-hidden border border-border bg-black"
+          style={{ height: "calc(100vh - 180px)", minHeight: 520 }}
+        >
+          <iframe
+            src="https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20olympgate&lang=en&cur=EUR"
+            title="Gates of Olympus"
+            className="w-full h-full"
+            allow="fullscreen"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </Layout>
+  );
+}
