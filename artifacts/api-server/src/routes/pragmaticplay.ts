@@ -245,7 +245,20 @@ router.post("/pragmaticplay/endround", async (req, res) => {
     }
     const result = await getSessionUser(token);
     if (!result) { res.json(errorResponse(4, "TokenInvalid")); return; }
-    res.json({ error: 0, description: "Success" });
+    const { user } = result;
+
+    // Mark round as closed
+    await db
+      .update(ppRoundsTable)
+      .set({ status: "closed", updatedAt: new Date() })
+      .where(eq(ppRoundsTable.roundId, String(roundId)));
+
+    res.json({
+      error: 0,
+      description: "Success",
+      cash: parseFloat(user.balance.toFixed(4)),
+      bonus: 0.00,
+    });
   } catch (err) {
     req.log?.error(err);
     res.json(errorResponse(130, "EndRoundInternalServerError"));
