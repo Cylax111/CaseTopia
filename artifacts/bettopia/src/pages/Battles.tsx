@@ -707,7 +707,7 @@ function CreateBattleView({
                 step={1}
                 value={borrowPercent}
                 onChange={e => setBorrowPercent(Number(e.target.value))}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                className="w-full h-8 rounded-full appearance-none cursor-pointer borrow-slider"
                 style={{
                   background: `linear-gradient(to right, hsl(var(--primary)) ${(borrowPercent / 80) * 100}%, hsl(var(--border)) ${(borrowPercent / 80) * 100}%)`
                 }}
