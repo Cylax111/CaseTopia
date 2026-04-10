@@ -92,6 +92,16 @@ function runBattle(players: BattlePlayer[], caseIds: number[], casesById: Record
       }
     }
     ({ winnerTeamIndex, isDraw } = pickRandomFromTied(teamLast));
+  } else if (battleType === "crazy") {
+    // Lowest total wins — invert all values so pickRandomFromTied still picks the "highest"
+    const teamTotals: Record<number, number> = {};
+    for (const p of players) {
+      teamTotals[p.teamIndex] = (teamTotals[p.teamIndex] || 0) + (playerTotals[p.userId] || 0);
+    }
+    const maxVal = Math.max(...Object.values(teamTotals));
+    const inverted: Record<number, number> = {};
+    for (const [k, v] of Object.entries(teamTotals)) inverted[Number(k)] = maxVal - v;
+    ({ winnerTeamIndex, isDraw } = pickRandomFromTied(inverted));
   } else {
     const teamTotals: Record<number, number> = {};
     for (const p of players) {
