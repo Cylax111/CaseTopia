@@ -94,10 +94,10 @@ local function complete_deposit(bot, dep, totalDL)
         "worldName=" .. dep.world .. "&amountDl=" .. tostring(totalDL))
     if done_res and done_res:find('"ok":true') then
         print("[DEPOSIT] Credited " .. totalDL .. " DL to " .. dep.growId)
-        bot:say("@" .. dep.growId .. " Deposit received!")
+        bot:say(dep.growId .. " Deposit received!")
     else
         print("[DEPOSIT] deposit-complete failed: " .. tostring(done_res))
-        bot:say("@" .. dep.growId .. " Something went wrong - contact support.")
+        bot:say(dep.growId .. " Something went wrong - contact support.")
     end
     claimed_worlds[dep.world] = nil
     activeDeposit = nil
@@ -169,7 +169,7 @@ local function poll_deposits(bot)
                 return
             end
 
-            bot:say("@" .. tostring(growId) .. " Drop")
+            bot:say(tostring(growId) .. " Drop")
 
             local prevBGL, prevDL, prevWL = inv_snapshot(bot)
             activeDeposit = {
