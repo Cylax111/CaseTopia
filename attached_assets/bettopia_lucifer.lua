@@ -34,7 +34,7 @@ local function api_post(path, params)
     local url = WEBSITE_URL .. "/api" .. path .. "?secret=" .. BOT_SECRET
     if params then url = url .. "&" .. params end
     local ok, res = pcall(function()
-        local h = io.popen('curl -s -X POST "' .. url .. '"')
+        local h = io.popen('curl -s -X POST --data "" "' .. url .. '"')
         local r = h:read("*a")
         h:close()
         return r
