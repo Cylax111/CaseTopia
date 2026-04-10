@@ -15,6 +15,7 @@ import walletRouter from "./wallet";
 import botRouter from "./bot";
 import dailyRouter from "./daily";
 import sweetBonanzaRouter from "./sweetbonanza";
+import pragmaticPlayRouter from "./pragmaticplay";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(walletRouter);
 router.use(botRouter);
 router.use(dailyRouter);
 router.use(sweetBonanzaRouter);
+router.use(pragmaticPlayRouter);
 
 export default router;
