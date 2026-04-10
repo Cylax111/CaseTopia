@@ -555,7 +555,10 @@ export default function Home() {
 
         {/* Slots */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold">Slots</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Slots</h2>
+            <Link href="/slots" className="text-sm text-primary hover:underline font-semibold">View All →</Link>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 
             {/* Sweet Bonanza */}
