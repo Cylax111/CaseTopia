@@ -24,10 +24,6 @@ import Crash from "./pages/Crash";
 import Mines from "./pages/Mines";
 import Tower from "./pages/Cross";
 import DailyClaim from "./pages/DailyClaim";
-import SlotsLobby from "./pages/SlotsLobby";
-import SlotGame from "./pages/PPSlot";
-import EgyptianSlot from "./pages/EgyptianSlot";
-import AdminGames from "./pages/AdminGames";
 
 const queryClient = new QueryClient();
 
@@ -59,10 +55,6 @@ function Router() {
       <Route path="/mines" component={Mines} />
       <Route path="/tower" component={Tower} />
       <Route path="/daily" component={DailyClaim} />
-      <Route path="/slots" component={SlotsLobby} />
-      <Route path="/slots/egyptian-gold" component={EgyptianSlot} />
-      <Route path="/slots/:symbol" component={SlotGame} />
-      <Route path="/admin/games" component={AdminGames} />
       <Route path="/profile" component={Profile} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

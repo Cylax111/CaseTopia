@@ -553,65 +553,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Slots */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Slots</h2>
-            <Link href="/slots" className="text-sm text-primary hover:underline font-semibold">View All →</Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-
-            {/* Elvis Frog in Vegas */}
-            <Link href="/slots/elvis-frog-in-vegas">
-              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
-                style={{ background: "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)" }}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
-                  <span className="text-4xl">🐸</span>
-                  <span className="text-3xl">🎸</span>
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
-                <div className="absolute bottom-3 left-3 z-20">
-                  <h3 className="text-base font-bold text-white drop-shadow">Elvis Frog in Vegas</h3>
-                  <p className="text-xs text-white/60">BGaming</p>
-                </div>
-              </div>
-            </Link>
-
-            {/* Book of Cats */}
-            <Link href="/slots/book-of-cats">
-              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
-                style={{ background: "linear-gradient(135deg, #1a0533 0%, #6b21a8 50%, #c084fc 100%)" }}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
-                  <span className="text-4xl">🐱</span>
-                  <span className="text-3xl">📖</span>
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
-                <div className="absolute bottom-3 left-3 z-20">
-                  <h3 className="text-base font-bold text-white drop-shadow">Book of Cats</h3>
-                  <p className="text-xs text-white/60">BGaming</p>
-                </div>
-              </div>
-            </Link>
-
-            {/* Aztec Magic Deluxe */}
-            <Link href="/slots/aztec-magic-deluxe">
-              <div className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border hover:border-primary transition-all cursor-pointer"
-                style={{ background: "linear-gradient(135deg, #7c3c00 0%, #d4a017 50%, #ffe066 100%)" }}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-60 group-hover:opacity-80 transition-opacity select-none">
-                  <span className="text-4xl">🗿</span>
-                  <span className="text-3xl">🌞</span>
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
-                <div className="absolute bottom-3 left-3 z-20">
-                  <h3 className="text-base font-bold text-white drop-shadow">Aztec Magic Deluxe</h3>
-                  <p className="text-xs text-white/60">BGaming</p>
-                </div>
-              </div>
-            </Link>
-
-          </div>
-        </div>
-
         {/* Daily Race */}
         <div id="daily-race" className="space-y-0 rounded-2xl border border-yellow-500/20">
           {/* Header */}
