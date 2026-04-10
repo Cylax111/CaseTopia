@@ -152,8 +152,9 @@ local function poll_deposits(bot)
             print("[DEPOSIT] New session - world: " .. world .. " player: " .. tostring(growId))
 
             claimed_worlds[world] = true
-            bot:warp(world)
-            sleep(3000)
+            local wr, we = pcall(function() bot:warp(world) end)
+            print("[WARP] result=" .. tostring(wr) .. " err=" .. tostring(we))
+            sleep(5000)
 
             local claim_res = api_post("/bot/claim-deposit",
                 "worldName=" .. world .. "&botGrowId=" .. BOT_GROW_ID)
@@ -200,14 +201,18 @@ local function poll_withdrawals(bot)
     end
 end
 
-local bot = getBot(BOT_GROW_ID)
 print("BetTopia bot started!")
 
 while true do
-    check_active_deposit(bot)
-    if not activeDeposit then
-        poll_deposits(bot)
-        poll_withdrawals(bot)
+    local bot = getBot(BOT_GROW_ID)
+    if bot then
+        check_active_deposit(bot)
+        if not activeDeposit then
+            poll_deposits(bot)
+            poll_withdrawals(bot)
+        end
+    else
+        print("[ERROR] Bot not found: " .. BOT_GROW_ID)
     end
     sleep(500)
 end
