@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { Link } from "wouter";
 import { Layout } from "../components/Layout";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -10,7 +11,7 @@ export default function SweetBonanza1000() {
   const [mode, setMode] = useState<"real" | "demo">("demo");
 
   const DEMO_URL =
-    "https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20sbn1000&lang=en&cur=DL&jurisdiction=MT";
+    "https://demogamesfree.pragmaticplay.net/gs2c/openGame.do?gameSymbol=vs20sbn1000&lang=en&cur=USD&jurisdiction=MT";
 
   async function launchReal() {
     setLoading(true);
@@ -34,7 +35,6 @@ export default function SweetBonanza1000() {
       setMode("real");
     } catch (err: any) {
       setError(err.message || "Failed to launch");
-      setGameUrl(DEMO_URL);
       setMode("demo");
     } finally {
       setLoading(false);
@@ -56,7 +56,7 @@ export default function SweetBonanza1000() {
               </span>
             </p>
           </div>
-          {user && (
+          {user ? (
             <button
               onClick={launchReal}
               disabled={loading || mode === "real"}
@@ -64,11 +64,17 @@ export default function SweetBonanza1000() {
             >
               {loading ? "Loading..." : mode === "real" ? "✓ Real Money" : "Play for Real"}
             </button>
+          ) : (
+            <Link href="/login">
+              <button className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all">
+                Login to Play for Real
+              </button>
+            </Link>
           )}
         </div>
 
         {error && (
-          <p className="text-red-400 text-sm">{error} — playing demo instead</p>
+          <p className="text-red-400 text-sm">{error}</p>
         )}
 
         <div
@@ -76,6 +82,7 @@ export default function SweetBonanza1000() {
           style={{ height: "calc(100vh - 200px)", minHeight: 520 }}
         >
           <iframe
+            key={src}
             src={src}
             title="Sweet Bonanza 1000"
             className="w-full h-full"
