@@ -47,7 +47,7 @@ local function inv_snapshot(bot)
     return inv:getItemCount(ITEM_BGL), inv:getItemCount(ITEM_DL), inv:getItemCount(ITEM_WL)
 end
 
--- Walk over every dropped DL/BGL/WL in the world so Growtopia auto-collects them
+-- Collect every dropped DL/BGL/WL in the world
 local function collect_dropped_items(bot)
     local ok, world = pcall(function() return bot:getWorld() end)
     if not ok or not world then return end
@@ -60,9 +60,22 @@ local function collect_dropped_items(bot)
         if ok4 and obj then
             local id = obj.id
             if id == ITEM_BGL or id == ITEM_DL or id == ITEM_WL then
-                print("[COLLECT] Item " .. id .. " at " .. tostring(obj.x) .. "," .. tostring(obj.y))
-                pcall(function() bot:moveTo(obj.x, obj.y) end)
-                sleep(300)
+                local px = obj.x
+                local py = obj.y
+                -- Tile coords (GT tiles = 32px each)
+                local tx = math.floor(px / 32)
+                local ty = math.floor(py / 32)
+                print("[COLLECT] Item " .. id .. " px=" .. px .. "," .. py .. " tile=" .. tx .. "," .. ty)
+                -- Move to item first
+                pcall(function() bot:moveTo(tx, ty) end)
+                sleep(400)
+                -- Try every known collection method
+                local rc = pcall(function() bot:collect(obj.oid) end)
+                if not rc then pcall(function() bot:collect(px, py) end) end
+                if not rc then pcall(function() bot:collect(tx, ty) end) end
+                pcall(function() bot:punch(tx, ty) end)
+                pcall(function() bot:punch(px, py) end)
+                sleep(200)
             end
         end
     end
