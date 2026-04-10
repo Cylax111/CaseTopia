@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Package, Crown, Eye, Bot, Loader2, LogOut, Volume2, VolumeX, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Package, Crown, Eye, Bot, Loader2, LogOut, Volume2, VolumeX } from "lucide-react";
 import { GemIcon } from "./GemIcon";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -81,15 +81,14 @@ const RARITY_COLOR: Record<string, string> = {
   divine:    "#FFFFFF",
 };
 
-const REEL_BG     = "hsl(var(--sidebar))";
-const REEL_H      = 168;
-const ITEM_W      = 96;
-const ITEM_COUNT  = 60;
-const WINNING_IDX = 45;
-const START_OFFSET = 5 * ITEM_W;
+// Vertical reel dimensions — identical to Cases.tsx getVConfig()
+const VERT_ITEM_H  = 160; // card height (same as Cases.tsx itemH)
+const REEL_BG      = "hsl(var(--sidebar))";
+const ITEM_COUNT   = 60;
+const WINNING_IDX  = 45;
 const ORB_THRESHOLD = 3; // ≤3% → gold orb (same as Cases.tsx GOLD_ORB_THRESHOLD)
 
-// Orb placeholder item — shown in reel strip for ≤3% items (matches ORB_PLACEHOLDER_ITEM in Cases.tsx)
+// Orb placeholder — shown in strip for ≤3% items (same rule as Cases.tsx ORB_PLACEHOLDER_ITEM)
 const ORB_ITEM: BattleItem = {
   id: "__orb__",
   name: "???",
@@ -113,7 +112,6 @@ function buildStrip(caseItems: CaseItem[], result: BattleItem, resultIsRare: boo
   const strip: BattleItem[] = [];
   for (let i = 0; i < ITEM_COUNT; i++) {
     const item = pool[Math.floor(Math.random() * pool.length)];
-    // Replace ≤3% items with orb placeholder — exact same rule as Cases.tsx
     strip.push(item.chance <= ORB_THRESHOLD ? ORB_ITEM : item);
   }
   // Winning position: orb if rare, else real item
@@ -233,26 +231,29 @@ function playWinSound(ctx: AudioContext, muted: boolean) {
   });
 }
 
-// ─── Reel Item ─────────────────────────────────────────────────────────────────
+// ─── Vertical Reel Item — mirrors Cases.tsx VerticalReelItemBox exactly ────────
 
-function ReelItem({ item }: { item: BattleItem }) {
+function VertReelItem({ item }: { item: BattleItem }) {
   const isOrb = item.id === "__orb__";
   const hex = isOrb ? "#fbbf24" : (RARITY_COLOR[item.rarity] ?? "#888");
   return (
-    <div className="flex-shrink-0 flex flex-col items-center justify-center" style={{ width: ITEM_W, height: REEL_H }}>
-      <div className="flex-1 w-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 8px ${hex}99)` }}>
+    <div
+      className="flex-shrink-0 flex items-center justify-center"
+      style={{ height: VERT_ITEM_H, width: "100%" }}
+    >
+      <div style={{ filter: `drop-shadow(0 0 10px ${hex}aa)` }}>
         {item.imageUrl
-          ? <img src={item.imageUrl} alt={item.name} style={{ width: isOrb ? 52 : 40, height: isOrb ? 52 : 40, objectFit: "contain", imageRendering: isOrb ? "auto" : "pixelated" }} />
-          : <div style={{ width: 32, height: 32, backgroundColor: hex, borderRadius: 4 }} />}
+          ? <img src={item.imageUrl} alt={item.name}
+              style={{ width: 48, height: 48, objectFit: "contain", imageRendering: isOrb ? "auto" : "pixelated" }} />
+          : <div style={{ width: 40, height: 40, backgroundColor: hex, borderRadius: 6 }} />}
       </div>
-      <div style={{ height: 3, width: "100%", backgroundColor: hex, opacity: 0.85, flexShrink: 0 }} />
     </div>
   );
 }
 
-// ─── Horizontal Reel — self-contained, mirrors Cases.tsx opening sequence ──────
+// ─── Vertical Reel — self-contained, mirrors Cases.tsx vertical opening exactly ─
 
-interface HorizReelProps {
+interface VertReelProps {
   caseItems: CaseItem[];
   result: BattleItem;
   resultChance?: number;
@@ -260,36 +261,35 @@ interface HorizReelProps {
   mutedRef: React.MutableRefObject<boolean>;
   isWinner: boolean;
   showWinner: boolean;
-  onMainDone?: () => void;   // fired when main spin ends — BattleScreen uses to show item label
-  onFullyDone?: () => void;  // fired when all animation done (incl. bonus) — BattleScreen uses to advance round
+  triColor: string; // color of the inward-pointing triangles
+  // Both callbacks fire together — either after main snap (non-rare) or after bonus snap (rare).
+  // This ensures item label never appears before the orb animation completes.
+  onDone?: () => void;
 }
 
-function HorizReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinner, showWinner, onMainDone, onFullyDone }: HorizReelProps) {
+function VertReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinner, showWinner, triColor: initialTriColor, onDone }: VertReelProps) {
   const resultIsRare = resultChance !== undefined && resultChance <= ORB_THRESHOLD;
 
-  // Main strip — built once on mount
   const mainStrip = useMemo(() => buildStrip(caseItems, result, resultIsRare), []);
 
-  // Current strip shown (switches to bonus strip during bonus phase)
   const [currentStrip, setCurrentStrip] = useState<BattleItem[]>(mainStrip);
-  const [reelPhase, setReelPhase] = useState<"main" | "orb" | "bonus" | "done">("main");
   const [showOrbOverlay, setShowOrbOverlay] = useState(false);
-  const [lineColor, setLineColor] = useState("#a78bfa"); // purple → gold during bonus
+  const [reelPhase, setReelPhase] = useState<"main" | "orb" | "bonus" | "done">("main");
+  const [activeTriColor, setActiveTriColor] = useState(initialTriColor);
 
   const stripRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
-  const allRafsRef = useRef<number[]>([]); // all rAF ids for cleanup
+  const allRafsRef = useRef<number[]>([]);
   const lastTickIdx = useRef(-1);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Helper: add a timer and register for cleanup
   const later = (fn: () => void, ms: number) => {
     const id = setTimeout(fn, ms);
     timersRef.current.push(id);
     return id;
   };
 
-  // Tick monitor — same logic as Cases.tsx startTickMonitor(ref, false)
+  // Tick monitor reads translateY — same as Cases.tsx startTickMonitor(ref, true)
   const startTick = (el: HTMLDivElement) => {
     cancelAnimationFrame(rafRef.current);
     lastTickIdx.current = -1;
@@ -297,8 +297,9 @@ function HorizReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinn
       const mat = window.getComputedStyle(el).transform;
       if (mat && mat !== "none") {
         const vals = mat.match(/matrix.*\((.+)\)/)?.[1].split(",");
-        const rawX = vals ? Math.abs(parseFloat(vals[4] ?? "0")) : 0;
-        const idx = Math.floor(rawX / ITEM_W);
+        // vals[5] = ty for 2D matrix(a,b,c,d,tx,ty)
+        const rawY = vals ? Math.abs(parseFloat(vals[5] ?? "0")) : 0;
+        const idx = Math.floor(rawY / VERT_ITEM_H);
         if (idx !== lastTickIdx.current && idx > 0 && audioCtx) {
           lastTickIdx.current = idx;
           playTick(audioCtx, mutedRef.current);
@@ -311,128 +312,124 @@ function HorizReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinn
 
   const stopTick = () => cancelAnimationFrame(rafRef.current);
 
-  // Full animation sequence — runs once on mount
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
 
     const MAIN_DUR = 2200;
-    const RANDOM_OFFSET = Math.floor(Math.random() * 40) - 20;
-    const mainTarget = WINNING_IDX * ITEM_W + RANDOM_OFFSET;
+    const RANDOM_OFFSET = Math.floor(Math.random() * 60) - 30; // ±30px, same as Cases.tsx vertical randomOffset
+    const mainTarget = WINNING_IDX * VERT_ITEM_H + RANDOM_OFFSET;
 
-    // 1. Pre-position (no transition) — same as Cases.tsx setTimeout 50ms → pre-position
+    // Pre-position: translateY(0) — same as Cases.tsx vertical pre-position
     el.style.transition = "none";
-    el.style.transform = `translateX(-${START_OFFSET}px)`;
+    el.style.transform = "translateY(0)";
 
-    // 2. Double rAF then animate — exact same pattern as Cases.tsx
+    // Double rAF → animate (Cases.tsx pattern)
     const raf1 = requestAnimationFrame(() => {
+      allRafsRef.current.push(raf1);
       const raf2 = requestAnimationFrame(() => {
         allRafsRef.current.push(raf2);
         el.style.transition = `transform ${MAIN_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
-        el.style.transform = `translateX(-${mainTarget}px)`;
+        el.style.transform = `translateY(-${mainTarget}px)`;
         startTick(el);
 
-        // 3. After main spin: snap to exact center (Cases.tsx: duration + 60ms)
+        // After main spin: snap (Cases.tsx: duration + 60ms)
         later(() => {
           stopTick();
           el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
-          el.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
+          el.style.transform = `translateY(-${WINNING_IDX * VERT_ITEM_H}px)`;
           if (audioCtx) playStopClick(audioCtx, mutedRef.current);
-          onMainDone?.();
 
           if (!resultIsRare) {
-            // No bonus — done immediately
-            setReelPhase("done");
-            onFullyDone?.();
+            // No bonus — fire done immediately after snap settles
+            later(() => {
+              setReelPhase("done");
+              onDone?.();
+            }, 320);
             return;
           }
 
-          // 4. Rare item — show orb overlay (Cases.tsx: setModalMode("bonus_orb"))
+          // Rare item: show orb overlay (Cases.tsx: setModalMode("bonus_orb"))
           later(() => {
             setShowOrbOverlay(true);
             setReelPhase("orb");
             if (audioCtx) playBonusSwoosh(audioCtx, mutedRef.current);
 
-            // Build bonus strip with rare-only pool
+            // Build bonus strip — rare-only pool, real item at WINNING_IDX
             const rarePool = caseItems.filter(ci => ci.chance <= ORB_THRESHOLD);
             const bonusPool = rarePool.length > 0 ? rarePool : caseItems;
             const bonusStrip: BattleItem[] = Array.from({ length: ITEM_COUNT }, () =>
               bonusPool[Math.floor(Math.random() * bonusPool.length)]
             );
-            bonusStrip[WINNING_IDX] = result; // Real item at winning position
+            bonusStrip[WINNING_IDX] = result;
 
-            // 5. After 1200ms orb show: start bonus spin (Cases.tsx switches strip + animates)
+            // After 1200ms orb show: bonus spin (Cases.tsx timing)
             later(() => {
               setShowOrbOverlay(false);
-              setCurrentStrip(bonusStrip); // Swap to bonus strip
-              setLineColor("#fbbf24"); // Gold triangles
+              setCurrentStrip(bonusStrip);
+              setActiveTriColor("#fbbf24"); // gold triangles during bonus (Cases.tsx)
               setReelPhase("bonus");
 
-              // Pre-position bonus strip
+              // Pre-position: translateY(0) — Cases.tsx vertical bonus reset
               el.style.transition = "none";
-              el.style.transform = `translateX(-${START_OFFSET}px)`;
+              el.style.transform = "translateY(0)";
 
               const BONUS_DUR = 1800;
-              const bonusOffset = Math.floor(Math.random() * 40) - 20;
-              const bonusTarget = WINNING_IDX * ITEM_W + bonusOffset;
+              const bonusOffset = Math.floor(Math.random() * 60) - 30;
+              const bonusTarget = WINNING_IDX * VERT_ITEM_H + bonusOffset;
 
               const braf1 = requestAnimationFrame(() => {
                 allRafsRef.current.push(braf1);
                 const braf2 = requestAnimationFrame(() => {
                   allRafsRef.current.push(braf2);
                   el.style.transition = `transform ${BONUS_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
-                  el.style.transform = `translateX(-${bonusTarget}px)`;
+                  el.style.transform = `translateY(-${bonusTarget}px)`;
                   startTick(el);
 
-                  // 6. After bonus spin: snap to real item
+                  // Snap bonus to real item
                   later(() => {
                     stopTick();
                     el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
-                    el.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
+                    el.style.transform = `translateY(-${WINNING_IDX * VERT_ITEM_H}px)`;
                     if (audioCtx) playStopClick(audioCtx, mutedRef.current);
-                    setLineColor("#a78bfa"); // Back to purple
-                    setReelPhase("done");
-                    onFullyDone?.();
+                    setActiveTriColor(initialTriColor); // restore original triangle color
+                    later(() => {
+                      setReelPhase("done");
+                      onDone?.(); // fires AFTER bonus — item name shows only now
+                    }, 320);
                   }, BONUS_DUR + 60);
                 });
               });
-            }, 1200); // Orb shows for 1200ms
-          }, 360); // 360ms after main snap before orb appears
+            }, 1200);
+          }, 360);
         }, MAIN_DUR + 60);
       });
     });
-
-    allRafsRef.current.push(raf1);
 
     return () => {
       allRafsRef.current.forEach(cancelAnimationFrame);
       stopTick();
       timersRef.current.forEach(clearTimeout);
     };
-  }, []); // Run once on mount
+  }, []);
 
-  const winnerGlow = showWinner && isWinner ? `drop-shadow(0 0 12px ${lineColor}cc)` : undefined;
+  const winnerGlow = showWinner && isWinner
+    ? `drop-shadow(0 0 14px ${activeTriColor}cc)`
+    : undefined;
 
   return (
-    <div style={{ position: "relative", height: REEL_H, overflow: "hidden", background: REEL_BG, filter: winnerGlow }}>
-      {/* Triangles — gold during bonus, purple otherwise */}
-      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: `14px solid ${lineColor}`, zIndex: 100, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: `14px solid ${lineColor}`, zIndex: 100, pointerEvents: "none" }} />
-      {/* Gradient fades */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-      {/* Chevrons */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
-        <ChevronLeft style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
+    <div style={{ position: "relative", height: VERT_ITEM_H, overflow: "hidden", background: REEL_BG, filter: winnerGlow }}>
+      {/* Left triangle → pointing right (Cases.tsx vertical style) */}
+      <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `13px solid ${activeTriColor}`, zIndex: 100, pointerEvents: "none" }} />
+      {/* Right triangle ← pointing left */}
+      <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: `13px solid ${activeTriColor}`, zIndex: 100, pointerEvents: "none" }} />
+
+      {/* Vertical strip — flex column, same as Cases.tsx vertical layout */}
+      <div ref={stripRef} style={{ display: "flex", flexDirection: "column" }}>
+        {currentStrip.map((item, i) => <VertReelItem key={i} item={item} />)}
       </div>
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
-        <ChevronRight style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
-      </div>
-      {/* Strip */}
-      <div ref={stripRef} style={{ display: "flex", gap: 0, height: "100%", paddingLeft: "calc(50% - 48px)" }}>
-        {currentStrip.map((item, i) => <ReelItem key={i} item={item} />)}
-      </div>
-      {/* Orb overlay — shown during bonus_orb phase (matches Cases.tsx exactly) */}
+
+      {/* Orb overlay — Cases.tsx bonus_orb modal exact copy */}
       <AnimatePresence>
         {showOrbOverlay && (
           <motion.div
@@ -455,9 +452,10 @@ function HorizReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinn
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Bonus spin label */}
+
+      {/* "BONUS!" label during bonus spin */}
       {reelPhase === "bonus" && (
-        <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, textAlign: "center", zIndex: 15, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", bottom: 6, left: 0, right: 0, textAlign: "center", zIndex: 15, pointerEvents: "none" }}>
           <span style={{ fontSize: 9, fontWeight: 900, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 8px rgba(251,191,36,0.7)" }}>BONUS!</span>
         </div>
       )}
@@ -473,18 +471,18 @@ interface PlayerColProps {
   currentRoundResult: BattleItem | null;
   currentRoundResultChance?: number;
   revealedItems: { item: BattleItem; chance?: number }[];
-  mainSpinDone: boolean;
+  spinDone: boolean; // shows item label after spin is fully done (incl. bonus)
   isWinner: boolean;
   isLoser: boolean;
   showWinner: boolean;
   round: number;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
-  onMainDone?: () => void;
-  onFullyDone?: () => void;
+  triColor: string;
+  onDone?: () => void;
 }
 
-function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, mainSpinDone, isWinner, isLoser, showWinner, round, audioCtx, mutedRef, onMainDone, onFullyDone }: PlayerColProps) {
+function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, spinDone, isWinner, isLoser, showWinner, round, audioCtx, mutedRef, triColor, onDone }: PlayerColProps) {
   const tc = TEAM_COLORS[player.teamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
   const rc = currentRoundResult ? (RARITY_COLOR[currentRoundResult.rarity] ?? "#888") : undefined;
 
@@ -503,10 +501,10 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
         <span className="text-[10px] flex-shrink-0 text-muted-foreground"><ValDisplay value={player.totalValue} size={9} /></span>
       </div>
 
-      {/* Reel */}
+      {/* Vertical Reel */}
       <div className="flex-shrink-0">
         {currentRoundResult ? (
-          <HorizReel
+          <VertReel
             key={round}
             caseItems={caseItems}
             result={currentRoundResult}
@@ -515,19 +513,17 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
             mutedRef={mutedRef}
             isWinner={isWinner}
             showWinner={showWinner}
-            onMainDone={onMainDone}
-            onFullyDone={onFullyDone}
+            triColor={triColor}
+            onDone={onDone}
           />
         ) : (
-          // Placeholder before any round starts
-          <div style={{ position: "relative", height: REEL_H, background: REEL_BG, overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "14px solid #a78bfa40", zIndex: 100 }} />
-            <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: "14px solid #a78bfa40", zIndex: 100 }} />
-            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1 }} />
-            <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1 }} />
+          // Placeholder before round starts — static items
+          <div style={{ position: "relative", height: VERT_ITEM_H, overflow: "hidden", background: REEL_BG }}>
+            <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `13px solid ${triColor}40`, zIndex: 100 }} />
+            <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: `13px solid ${triColor}40`, zIndex: 100 }} />
             {caseItems.length > 0 ? (
-              <div style={{ display: "flex", height: "100%", alignItems: "center", paddingLeft: "calc(50% - 48px)" }}>
-                {[...caseItems, ...caseItems, ...caseItems].slice(0, 11).map((item, i) => <ReelItem key={i} item={item} />)}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <VertReelItem item={caseItems[Math.floor(Math.random() * caseItems.length)]} />
               </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/20">
@@ -538,9 +534,9 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
         )}
       </div>
 
-      {/* Item label — shows after main spin done */}
+      {/* Item label — only shows after full spin (including bonus) completes */}
       <div className="flex-shrink-0 h-9 flex flex-col items-center justify-center border-b border-border/10 bg-background/30">
-        {mainSpinDone && currentRoundResult ? (
+        {spinDone && currentRoundResult ? (
           <>
             <div className="text-[10px] font-bold truncate px-2 text-center leading-tight" style={{ color: rc }}>{currentRoundResult.name}</div>
             <div className="text-[10px] text-muted-foreground/70"><ValDisplay value={currentRoundResult.value} size={9} /></div>
@@ -631,7 +627,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function BattleScreen({ battle: initialBattle, currentUserId, isCreator = false, onAddBot, onLeave, onCopyBattle, onModifyBattle, onClose }: Props) {
+export function BattleScreen({ battle: initialBattle, currentUserId, isCreator = false, onAddBot, onLeave, onCopyBattle, onClose }: Props) {
   const [liveBattle, setLiveBattle] = useState<BattleResult>(initialBattle);
   const [animBattle, setAnimBattle] = useState<BattleResult | null>(
     initialBattle.status === "completed" ? initialBattle : null
@@ -641,7 +637,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   );
   const [countdown, setCountdown] = useState(3);
   const [currentRound, setCurrentRound] = useState(0);
-  const [mainSpinDone, setMainSpinDone] = useState(false); // shows item label after main spin
+  const [spinDone, setSpinDone] = useState(false);   // shows item label — only true after full spin+bonus
   const [revealedRounds, setRevealedRounds] = useState(0);
   const [showWinner, setShowWinner] = useState(false);
   const [addingBot, setAddingBot] = useState(false);
@@ -696,7 +692,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [phase, countdown]);
 
-  // Playing — detect when all rounds done; individual rounds driven by onFullyDone
+  // Playing — detect when all rounds done; individual rounds driven by onDone callback
   useEffect(() => {
     if (phase !== "playing" || !animBattle) return;
     const totalRounds = animBattle.rounds?.length ?? 0;
@@ -705,45 +701,36 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         tick(() => setPhase("tiebreaker_pending"), 800);
       } else {
         tick(() => {
-          setShowWinner(true);
-          setPhase("done");
+          setShowWinner(true); setPhase("done");
           if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
         }, 1000);
       }
     }
-    // rounds < total: reel mounts automatically and drives its own timing via callbacks
   }, [phase, currentRound, animBattle]);
 
-  // Tiebreaker pending → ready (small delay for overlay animation)
+  // Tiebreaker pending → ready
   useEffect(() => {
     if (phase !== "tiebreaker_pending") return;
     const t = setTimeout(() => setPhase("tiebreaker"), 500);
     return () => clearTimeout(t);
   }, [phase]);
 
-  // Tiebreaker active: handled by onFullyDone callback from col[0]
-  // (no separate timer needed)
-
-  // Callbacks from col[0]'s reel
-  const handleMainDone = useCallback(() => {
-    setMainSpinDone(true);
-  }, []);
-
-  const handleFullyDone = useCallback(() => {
+  // Callback from master column (col[0]) — fires when the FULL spin sequence is complete
+  const handleDone = useCallback(() => {
     if (phase === "tiebreaker") {
       tick(() => {
-        setShowWinner(true);
-        setPhase("done");
+        setShowWinner(true); setPhase("done");
         if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
-      }, 300);
+      }, 400);
       return;
     }
-    // Advance round
+    // Show label + advance round
+    setSpinDone(true);
     setRevealedRounds(r => r + 1);
     tick(() => {
-      setMainSpinDone(false);
+      setSpinDone(false);
       setCurrentRound(r => r + 1);
-    }, 700);
+    }, 900);
   }, [phase, tick]);
 
   const handleAddBot = useCallback(async () => {
@@ -780,6 +767,8 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   const maxPlayers = liveBattle.maxPlayers;
   const numTeams = getNumTeams(gameMode);
   const playersPerTeam = getPlayersPerTeam(gameMode);
+  const isTeamBattle = numTeams === 2 && playersPerTeam > 1;
+
   const currentRoundData = (phase === "tiebreaker" || phase === "tiebreaker_pending")
     ? rounds[rounds.length - 1] ?? null
     : rounds[currentRound] ?? null;
@@ -787,11 +776,11 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     ? (animBattle?.cases?.[rounds.length - 1] ?? animBattle?.cases?.[0])
     : (animBattle?.cases?.[currentRound] ?? animBattle?.cases?.[0]);
   const caseItemsForRound: CaseItem[] = (caseForRound?.items ?? []) as CaseItem[];
+
   const teamIndices = [...new Set(players.map((p) => p.teamIndex))].sort();
   const occupiedSlots = new Map<number, BattlePlayer>();
   for (const p of liveBattle.players) occupiedSlots.set(p.slotIndex ?? 0, p);
   const totalPrize = (liveBattle.cases ?? []).reduce((s, c) => s + (c.price ?? 0), 0) * maxPlayers;
-  const isTeamBattle = numTeams === 2 && playersPerTeam > 1;
 
   const runningTeamTotals = useMemo(() => {
     const totals: Record<number, number> = {};
@@ -804,6 +793,9 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     }
     return totals;
   }, [revealedRounds, rounds, players, teamIndices]);
+
+  // Triangle color: gold during bonus handled inside VertReel; here we pass the base color
+  const baseTriColor = "#a78bfa"; // purple, same as Cases.tsx default
 
   // Render a single player column
   const renderPlayerCol = (player: BattlePlayer, colIdx: number) => {
@@ -829,15 +821,15 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         currentRoundResult={roundResult}
         currentRoundResultChance={roundResultChance}
         revealedItems={revealedItems}
-        mainSpinDone={mainSpinDone}
+        spinDone={spinDone}
         isWinner={isWinner}
         isLoser={isLoser}
         showWinner={showWinner}
         round={phase === "tiebreaker" ? currentRound + 1000 : currentRound}
         audioCtx={isMasterCol ? audioCtxRef.current : null}
         mutedRef={mutedRef}
-        onMainDone={isMasterCol ? handleMainDone : undefined}
-        onFullyDone={isMasterCol ? handleFullyDone : undefined}
+        triColor={baseTriColor}
+        onDone={isMasterCol ? handleDone : undefined}
       />
     );
   };
@@ -875,7 +867,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
               : battleType === "crazy" ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
               : "bg-orange-500/20 text-orange-300 border-orange-500/40"
             }`}>
-              {battleType === "shared" ? "SHARED" : battleType === "top_pull" ? "TOP" : battleType === "crazy" ? "🃏" : "TERM"}
+              {battleType === "shared" ? "SHARED" : battleType === "top_pull" ? "TOP" : battleType === "crazy" ? "🃏 CRAZY" : "TERM"}
             </Badge>
           )}
           <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-0.5">
@@ -977,12 +969,12 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
       {(phase === "playing" || phase === "tiebreaker" || phase === "tiebreaker_pending" || phase === "done") && animBattle && (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
-          {/* Round progress dots */}
+          {/* Round progress */}
           {totalRounds > 0 && (
             <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 border-b border-border/10">
               {rounds.map((_, i) => (
                 <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  i < revealedRounds ? "bg-primary" : i === currentRound && !mainSpinDone ? "bg-primary/50 animate-pulse" : "bg-border/30"
+                  i < revealedRounds ? "bg-primary" : i === currentRound && !spinDone ? "bg-primary/50 animate-pulse" : "bg-border/30"
                 }`} />
               ))}
               <span className="text-[10px] text-muted-foreground ml-1">

@@ -486,10 +486,16 @@ router.post("/battles/:id/add-bot", requireAuth, async (req: any, res) => {
     if (players.length === battle.maxPlayers) {
       // All slots filled — run immediately
       const sortedPlayers = [...players].sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0));
-      const { rounds, updatedPlayers, winnerTeamIndex, winnerPlayer, isDraw } = runBattle(sortedPlayers, caseIds, casesById);
+      const effectiveBattleType = (battle as any).battleType ?? "normal";
+      const { rounds, updatedPlayers, winnerTeamIndex, winnerPlayer, isDraw } = runBattle(sortedPlayers, caseIds, casesById, effectiveBattleType);
       const costPerPlayer = battle.totalValue;
       const totalPrize = costPerPlayer * battle.maxPlayers;
-      await payWinners(updatedPlayers, winnerTeamIndex, totalPrize);
+      const battleTypeForPay = effectiveBattleType;
+      if (battleTypeForPay === "shared") {
+        await payShared(updatedPlayers, totalPrize);
+      } else {
+        await payWinners(updatedPlayers, winnerTeamIndex, totalPrize, (battle as any).borrowPercent ?? 0);
+      }
 
       [updatedBattle] = await db.update(battlesTable).set({
         players: updatedPlayers,
