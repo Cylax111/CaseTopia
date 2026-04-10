@@ -60,27 +60,17 @@ local function collect_dropped_items(bot)
         if ok4 and obj then
             local id = obj.id
             if id == ITEM_BGL or id == ITEM_DL or id == ITEM_WL then
-                local px = obj.x
-                local py = obj.y
-                -- Tile coords (GT tiles = 32px each)
+                local px = math.floor(obj.x)
+                local py = math.floor(obj.y)
                 local tx = math.floor(px / 32)
                 local ty = math.floor(py / 32)
-                print("[COLLECT] Item " .. id .. " px=" .. px .. "," .. py .. " tile=" .. tx .. "," .. ty)
-                -- Debug: test every movement method
-                local r1,e1 = pcall(function() bot:moveTo(px, py) end)
-                print("[MOVE] moveTo(px,py)=" .. tostring(r1) .. " " .. tostring(e1))
-                local r2,e2 = pcall(function() bot:moveTo(tx, ty) end)
-                print("[MOVE] moveTo(tx,ty)=" .. tostring(r2) .. " " .. tostring(e2))
-                local r3,e3 = pcall(function() bot:move(px, py) end)
-                print("[MOVE] move(px,py)=" .. tostring(r3) .. " " .. tostring(e3))
-                local r4,e4 = pcall(function() bot:walkTo(px, py) end)
-                print("[MOVE] walkTo(px,py)=" .. tostring(r4) .. " " .. tostring(e4))
-                local r5,e5 = pcall(function() bot:walkTo(tx, ty) end)
-                print("[MOVE] walkTo(tx,ty)=" .. tostring(r5) .. " " .. tostring(e5))
-                sleep(1500)
-                local rc = pcall(function() bot:collect(obj.oid) end)
-                if not rc then pcall(function() bot:collect(px, py) end) end
-                if not rc then pcall(function() bot:collect(tx, ty) end) end
+                print("[COLLECT] Item " .. id .. " at tile=" .. tx .. "," .. ty)
+                -- Move and wait 4s (enough time to walk ~8 tiles)
+                pcall(function() bot:moveTo(px, py) end)
+                sleep(4000)
+                pcall(function() bot:collect(obj.oid) end)
+                pcall(function() bot:collect(px, py) end)
+                pcall(function() bot:collect(tx, ty) end)
                 pcall(function() bot:punch(px, py) end)
                 pcall(function() bot:punch(tx, ty) end)
                 sleep(300)
