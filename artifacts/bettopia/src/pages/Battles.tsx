@@ -388,7 +388,7 @@ export default function Battles() {
 
 const CREATE_BATTLE_TYPES = [
   { value: "normal",   label: "Normal",   icon: "⚔️",  desc: "Highest total wins",          active: "border-primary bg-primary/15 text-primary" },
-  { value: "crazy",    label: "Crazy",    icon: "🤪",  desc: "Lowest total wins",            active: "border-pink-500 bg-pink-500/15 text-pink-300" },
+  { value: "crazy",    label: "Crazy",    icon: "🃏",  desc: "Lowest total wins",            active: "border-purple-500 bg-purple-500/15 text-purple-300" },
   { value: "shared",   label: "Shared",   icon: "🤝",  desc: "Prize split equally",         active: "border-cyan-500 bg-cyan-500/15 text-cyan-300" },
   { value: "top_pull", label: "Top Pull", icon: "🏆",  desc: "Best single item wins",        active: "border-yellow-500 bg-yellow-500/15 text-yellow-300" },
   { value: "terminal", label: "Terminal", icon: "💀",  desc: "Last case decides the winner", active: "border-orange-500 bg-orange-500/15 text-orange-300" },
@@ -874,10 +874,10 @@ function BattleCard({ battle, onJoin, onSpectate, onView, joinPending, alreadyJo
                 battle.battleType === "shared"   ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" :
                 battle.battleType === "top_pull" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" :
                 battle.battleType === "terminal" ? "bg-orange-500/20 text-orange-300 border-orange-500/40" :
-                battle.battleType === "crazy"    ? "bg-pink-500/20 text-pink-300 border-pink-500/40" :
+                battle.battleType === "crazy"    ? "bg-purple-500/20 text-purple-300 border-purple-500/40" :
                 "bg-primary/20 text-primary border-primary/40"
               }`}>
-                {battle.battleType === "shared" ? "SHARED" : battle.battleType === "top_pull" ? "TOP PULL" : battle.battleType === "terminal" ? "TERMINAL" : battle.battleType === "crazy" ? "🤪 CRAZY" : battle.battleType.toUpperCase()}
+                {battle.battleType === "shared" ? "SHARED" : battle.battleType === "top_pull" ? "TOP PULL" : battle.battleType === "terminal" ? "TERMINAL" : battle.battleType === "crazy" ? "🃏 CRAZY" : battle.battleType.toUpperCase()}
               </Badge>
             )}
           </div>
