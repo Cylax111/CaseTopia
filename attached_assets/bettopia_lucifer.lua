@@ -66,10 +66,18 @@ local function collect_dropped_items(bot)
                 local tx = math.floor(px / 32)
                 local ty = math.floor(py / 32)
                 print("[COLLECT] Item " .. id .. " px=" .. px .. "," .. py .. " tile=" .. tx .. "," .. ty)
-                -- moveTo uses pixel coords in Lucifer
-                pcall(function() bot:moveTo(px, py) end)
+                -- Debug: test every movement method
+                local r1,e1 = pcall(function() bot:moveTo(px, py) end)
+                print("[MOVE] moveTo(px,py)=" .. tostring(r1) .. " " .. tostring(e1))
+                local r2,e2 = pcall(function() bot:moveTo(tx, ty) end)
+                print("[MOVE] moveTo(tx,ty)=" .. tostring(r2) .. " " .. tostring(e2))
+                local r3,e3 = pcall(function() bot:move(px, py) end)
+                print("[MOVE] move(px,py)=" .. tostring(r3) .. " " .. tostring(e3))
+                local r4,e4 = pcall(function() bot:walkTo(px, py) end)
+                print("[MOVE] walkTo(px,py)=" .. tostring(r4) .. " " .. tostring(e4))
+                local r5,e5 = pcall(function() bot:walkTo(tx, ty) end)
+                print("[MOVE] walkTo(tx,ty)=" .. tostring(r5) .. " " .. tostring(e5))
                 sleep(1500)
-                -- Try every known collection method
                 local rc = pcall(function() bot:collect(obj.oid) end)
                 if not rc then pcall(function() bot:collect(px, py) end) end
                 if not rc then pcall(function() bot:collect(tx, ty) end) end
