@@ -83,7 +83,9 @@ local function complete_deposit(bot, dep, totalDL)
     if totalDL <= 0 then
         print("[DEPOSIT] Nothing received - cancelling " .. dep.world)
         api_post("/bot/cancel-deposit", "worldName=" .. dep.world)
-        bot:say("/go EXIT")
+        bot:leaveWorld()
+        sleep(1000)
+        bot:warp("EXIT")
         claimed_worlds[dep.world] = nil
         activeDeposit = nil
         return
@@ -152,8 +154,11 @@ local function poll_deposits(bot)
             print("[DEPOSIT] New session - world: " .. world .. " player: " .. tostring(growId))
 
             claimed_worlds[world] = true
-            print("[WARP] Going to " .. world)
-            bot:say("/go " .. world)
+            print("[WARP] Leaving current world...")
+            bot:leaveWorld()
+            sleep(2000)
+            print("[WARP] Entering " .. world)
+            bot:warp(world)
             sleep(5000)
 
             local claim_res = api_post("/bot/claim-deposit",
