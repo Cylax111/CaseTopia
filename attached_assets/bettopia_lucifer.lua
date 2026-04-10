@@ -159,17 +159,20 @@ local function poll_deposits(bot)
             sleep(2000)
             print("[WARP] Entering " .. world)
             bot:warp(world)
-            sleep(5000)
+            sleep(7000)
 
             local claim_res = api_post("/bot/claim-deposit",
                 "worldName=" .. world .. "&botGrowId=" .. BOT_GROW_ID)
+            print("[CLAIM] response: " .. tostring(claim_res))
             if not claim_res or not claim_res:find('"ok":true') then
                 print("[DEPOSIT] Claim failed: " .. tostring(claim_res))
                 claimed_worlds[world] = nil
                 return
             end
 
+            print("[SAY] Telling " .. tostring(growId) .. " to drop")
             bot:say(tostring(growId) .. " Drop")
+            sleep(500)
 
             local prevBGL, prevDL, prevWL = inv_snapshot(bot)
             activeDeposit = {
