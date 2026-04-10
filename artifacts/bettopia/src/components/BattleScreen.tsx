@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Package, Crown, Eye, Bot, Loader2, LogOut, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Package, Crown, Bot, Loader2, LogOut, Volume2, VolumeX, Copy, Pencil } from "lucide-react";
 import { GemIcon } from "./GemIcon";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -10,54 +10,24 @@ import orbPlaceholderSrc from "@assets/legendary_orb_1775538080736.webp";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface BattleItem {
-  id: string;
-  name: string;
-  color: string;
-  value: number;
-  rarity: string;
-  imageUrl?: string;
+  id: string; name: string; color: string;
+  value: number; rarity: string; imageUrl?: string;
 }
-
-interface CaseItem extends BattleItem {
-  chance: number;
-}
-
+interface CaseItem extends BattleItem { chance: number; }
 interface BattlePlayer {
-  userId: string;
-  username: string;
-  teamIndex: number;
-  slotIndex: number;
-  items: BattleItem[];
-  totalValue: number;
-  isBot?: boolean;
+  userId: string; username: string; teamIndex: number; slotIndex: number;
+  items: BattleItem[]; totalValue: number; isBot?: boolean;
 }
-
 interface BattleRound {
-  roundNumber: number;
-  caseId: number;
+  roundNumber: number; caseId: number;
   results: { userId: string | number; item: BattleItem }[];
 }
-
-interface CaseData {
-  id: string;
-  name: string;
-  price: number;
-  items: CaseItem[];
-}
-
+interface CaseData { id: string; name: string; price: number; items: CaseItem[]; }
 interface BattleResult {
-  id: string;
-  status: string;
-  gameMode: string;
-  battleType?: string;
-  isShared?: boolean;
-  maxPlayers: number;
-  isDraw?: boolean;
-  winnerId?: string;
-  winnerTeamIndex?: number;
-  players: BattlePlayer[];
-  cases: CaseData[];
-  rounds: BattleRound[];
+  id: string; status: string; gameMode: string; battleType?: string;
+  isShared?: boolean; maxPlayers: number; isDraw?: boolean;
+  winnerId?: string; winnerTeamIndex?: number;
+  players: BattlePlayer[]; cases: CaseData[]; rounds: BattleRound[];
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -70,68 +40,48 @@ const TEAM_COLORS = [
   { border: "border-pink-500",  bg: "bg-pink-500/10",  text: "text-pink-400",  hex: "#EC4899", solid: "bg-pink-500" },
   { border: "border-cyan-500",  bg: "bg-cyan-500/10",  text: "text-cyan-400",  hex: "#06B6D4", solid: "bg-cyan-500" },
 ];
-
 const RARITY_COLOR: Record<string, string> = {
-  common:    "#9E9E9E",
-  uncommon:  "#2196F3",
-  rare:      "#4CAF50",
-  epic:      "#9C27B0",
-  legendary: "#FF9800",
-  mythic:    "#FFD700",
-  divine:    "#FFFFFF",
+  common:"#9E9E9E", uncommon:"#2196F3", rare:"#4CAF50",
+  epic:"#9C27B0", legendary:"#FF9800", mythic:"#FFD700", divine:"#FFFFFF",
 };
-
-// Vertical reel dimensions — identical to Cases.tsx getVConfig()
-const VERT_ITEM_H  = 160; // card height (same as Cases.tsx itemH)
-const REEL_BG      = "hsl(var(--sidebar))";
-const ITEM_COUNT   = 60;
-const WINNING_IDX  = 45;
-const ORB_THRESHOLD = 3; // ≤3% → gold orb (same as Cases.tsx GOLD_ORB_THRESHOLD)
-
-// Orb placeholder — shown in strip for ≤3% items (same rule as Cases.tsx ORB_PLACEHOLDER_ITEM)
+const VERT_ITEM_H = 160;  // Cases.tsx getVConfig() itemH
+const REEL_BG     = "hsl(var(--sidebar))";
+const ITEM_COUNT  = 60;
+const WINNING_IDX = 45;
+const ORB_THRESHOLD = 3;
 const ORB_ITEM: BattleItem = {
-  id: "__orb__",
-  name: "???",
-  color: "#fbbf24",
-  value: 0,
-  rarity: "__orb__",
-  imageUrl: orbPlaceholderSrc,
+  id:"__orb__", name:"???", color:"#fbbf24",
+  value:0, rarity:"__orb__", imageUrl: orbPlaceholderSrc,
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function getNumTeams(gameMode: string): number {
-  return gameMode.split("v").filter(Boolean).length;
-}
-function getPlayersPerTeam(gameMode: string): number {
-  return parseInt(gameMode.split("v")[0], 10) || 1;
-}
+function getNumTeams(gm: string) { return gm.split("v").filter(Boolean).length; }
+function getPlayersPerTeam(gm: string) { return parseInt(gm.split("v")[0], 10) || 1; }
 
 function buildStrip(caseItems: CaseItem[], result: BattleItem, resultIsRare: boolean): BattleItem[] {
   const pool = caseItems.length > 0 ? caseItems : [{ ...result, chance: 100 } as CaseItem];
-  const strip: BattleItem[] = [];
-  for (let i = 0; i < ITEM_COUNT; i++) {
+  const strip: BattleItem[] = Array.from({ length: ITEM_COUNT }, () => {
     const item = pool[Math.floor(Math.random() * pool.length)];
-    strip.push(item.chance <= ORB_THRESHOLD ? ORB_ITEM : item);
-  }
-  // Winning position: orb if rare, else real item
+    return item.chance <= ORB_THRESHOLD ? ORB_ITEM : item;
+  });
   strip[WINNING_IDX] = resultIsRare ? ORB_ITEM : result;
   return strip;
 }
 
-// ─── Currency ──────────────────────────────────────────────────────────────────
+// ─── Currency display ──────────────────────────────────────────────────────────
 
 function ValDisplay({ value, size = 11 }: { value: number; size?: number }) {
   let n: number, unit: string;
-  if (value >= 100)    { n = +(value / 100).toFixed(2); unit = "BGL"; }
-  else if (value >= 1) { n = +value.toFixed(2);          unit = "DL";  }
-  else                 { n = Math.round(value * 100);    unit = "WL";  }
+  if (value >= 100)    { n = +(value/100).toFixed(2); unit="BGL"; }
+  else if (value >= 1) { n = +value.toFixed(2);        unit="DL"; }
+  else                 { n = Math.round(value*100);    unit="WL"; }
   return (
     <span className="flex items-center gap-0.5 font-bold tabular-nums">
       {n.toLocaleString()}
-      {unit === "BGL" ? <span className="text-yellow-400 font-black" style={{ fontSize: size }}>BGL</span>
-       : unit === "WL"  ? <span className="text-blue-400 font-bold"    style={{ fontSize: size }}>WL</span>
-       : <GemIcon size={size} />}
+      {unit==="BGL" ? <span className="text-yellow-400 font-black" style={{fontSize:size}}>BGL</span>
+      :unit==="WL"  ? <span className="text-blue-400 font-bold" style={{fontSize:size}}>WL</span>
+      :<GemIcon size={size}/>}
     </span>
   );
 }
@@ -139,449 +89,327 @@ function ValDisplay({ value, size = 11 }: { value: number; size?: number }) {
 // ─── Audio ─────────────────────────────────────────────────────────────────────
 
 function createAudioCtx(): AudioContext | null {
-  try { return new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { return null; }
+  try { return new (window.AudioContext||(window as any).webkitAudioContext)(); } catch { return null; }
 }
-
 function playTick(ctx: AudioContext, muted: boolean) {
   if (muted) return;
-  const t = ctx.currentTime;
-  const master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
-  const sr = ctx.sampleRate;
-  const snapLen = Math.floor(sr * 0.008);
-  const snapBuf = ctx.createBuffer(1, snapLen, sr);
-  const sd = snapBuf.getChannelData(0);
-  for (let i = 0; i < snapLen; i++) sd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snapLen, 3);
-  const snap = ctx.createBufferSource(); snap.buffer = snapBuf;
-  const sf = ctx.createBiquadFilter(); sf.type = "bandpass"; sf.frequency.value = 3200; sf.Q.value = 0.8;
-  const sg = ctx.createGain(); sg.gain.setValueAtTime(0.25, t); sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.008);
+  const t=ctx.currentTime, master=ctx.createGain(); master.gain.value=0.55; master.connect(ctx.destination);
+  const sr=ctx.sampleRate, snapLen=Math.floor(sr*0.008), snapBuf=ctx.createBuffer(1,snapLen,sr);
+  const sd=snapBuf.getChannelData(0); for(let i=0;i<snapLen;i++) sd[i]=(Math.random()*2-1)*Math.pow(1-i/snapLen,3);
+  const snap=ctx.createBufferSource(); snap.buffer=snapBuf;
+  const sf=ctx.createBiquadFilter(); sf.type="bandpass"; sf.frequency.value=3200; sf.Q.value=0.8;
+  const sg=ctx.createGain(); sg.gain.setValueAtTime(0.25,t); sg.gain.exponentialRampToValueAtTime(0.0001,t+0.008);
   snap.connect(sf); sf.connect(sg); sg.connect(master); snap.start(t);
-  const fund = ctx.createOscillator(); fund.type = "sine";
-  fund.frequency.setValueAtTime(260, t); fund.frequency.exponentialRampToValueAtTime(120, t + 0.045);
-  const fg = ctx.createGain(); fg.gain.setValueAtTime(0, t); fg.gain.linearRampToValueAtTime(0.5, t + 0.002); fg.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
-  fund.connect(fg); fg.connect(master); fund.start(t); fund.stop(t + 0.08);
-  const harm = ctx.createOscillator(); harm.type = "sine";
-  harm.frequency.setValueAtTime(520, t); harm.frequency.exponentialRampToValueAtTime(240, t + 0.03);
-  const hg = ctx.createGain(); hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(0.18, t + 0.002); hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-  harm.connect(hg); hg.connect(master); harm.start(t); harm.stop(t + 0.05);
+  const fund=ctx.createOscillator(); fund.type="sine";
+  fund.frequency.setValueAtTime(260,t); fund.frequency.exponentialRampToValueAtTime(120,t+0.045);
+  const fg=ctx.createGain(); fg.gain.setValueAtTime(0,t); fg.gain.linearRampToValueAtTime(0.5,t+0.002); fg.gain.exponentialRampToValueAtTime(0.0001,t+0.07);
+  fund.connect(fg); fg.connect(master); fund.start(t); fund.stop(t+0.08);
+  const harm=ctx.createOscillator(); harm.type="sine"; harm.frequency.setValueAtTime(520,t); harm.frequency.exponentialRampToValueAtTime(240,t+0.03);
+  const hg=ctx.createGain(); hg.gain.setValueAtTime(0,t); hg.gain.linearRampToValueAtTime(0.18,t+0.002); hg.gain.exponentialRampToValueAtTime(0.0001,t+0.04);
+  harm.connect(hg); hg.connect(master); harm.start(t); harm.stop(t+0.05);
 }
-
 function playStopClick(ctx: AudioContext, muted: boolean) {
   if (muted) return;
-  const t = ctx.currentTime; const sr = ctx.sampleRate;
-  const master = ctx.createGain(); master.gain.value = 0.75; master.connect(ctx.destination);
-  const tLen = Math.floor(sr * 0.010); const tBuf = ctx.createBuffer(1, tLen, sr);
-  const td = tBuf.getChannelData(0);
-  for (let i = 0; i < tLen; i++) td[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / tLen, 2);
-  const tr = ctx.createBufferSource(); tr.buffer = tBuf;
-  const tf = ctx.createBiquadFilter(); tf.type = "bandpass"; tf.frequency.value = 3800; tf.Q.value = 0.8;
-  const tg = ctx.createGain(); tg.gain.setValueAtTime(0.45, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.010);
+  const t=ctx.currentTime, sr=ctx.sampleRate, master=ctx.createGain(); master.gain.value=0.75; master.connect(ctx.destination);
+  const tLen=Math.floor(sr*0.010), tBuf=ctx.createBuffer(1,tLen,sr), td=tBuf.getChannelData(0);
+  for(let i=0;i<tLen;i++) td[i]=(Math.random()*2-1)*Math.pow(1-i/tLen,2);
+  const tr=ctx.createBufferSource(); tr.buffer=tBuf;
+  const tf=ctx.createBiquadFilter(); tf.type="bandpass"; tf.frequency.value=3800; tf.Q.value=0.8;
+  const tg=ctx.createGain(); tg.gain.setValueAtTime(0.45,t); tg.gain.exponentialRampToValueAtTime(0.0001,t+0.010);
   tr.connect(tf); tf.connect(tg); tg.connect(master); tr.start(t);
-  const thud = ctx.createOscillator(); thud.type = "sine";
-  thud.frequency.setValueAtTime(300, t); thud.frequency.exponentialRampToValueAtTime(75, t + 0.10);
-  const thg = ctx.createGain(); thg.gain.setValueAtTime(0, t); thg.gain.linearRampToValueAtTime(0.9, t + 0.003); thg.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-  thud.connect(thg); thg.connect(master); thud.start(t); thud.stop(t + 0.18);
-  const sh = ctx.createOscillator(); sh.type = "sine"; sh.frequency.value = 640;
-  const shg = ctx.createGain(); shg.gain.setValueAtTime(0, t); shg.gain.linearRampToValueAtTime(0.14, t + 0.003); shg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-  sh.connect(shg); shg.connect(master); sh.start(t); sh.stop(t + 0.11);
+  const thud=ctx.createOscillator(); thud.type="sine";
+  thud.frequency.setValueAtTime(300,t); thud.frequency.exponentialRampToValueAtTime(75,t+0.10);
+  const thg=ctx.createGain(); thg.gain.setValueAtTime(0,t); thg.gain.linearRampToValueAtTime(0.9,t+0.003); thg.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+  thud.connect(thg); thg.connect(master); thud.start(t); thud.stop(t+0.18);
 }
-
 function playBonusSwoosh(ctx: AudioContext, muted: boolean) {
   if (muted) return;
-  const t = ctx.currentTime; const dur = 1.5; const sr = ctx.sampleRate;
-  const bufLen = Math.floor(sr * dur);
-  const buf = ctx.createBuffer(1, bufLen, sr);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
-  const noiseSrc = ctx.createBufferSource(); noiseSrc.buffer = buf;
-  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 3;
-  lp.frequency.setValueAtTime(80, t); lp.frequency.exponentialRampToValueAtTime(7000, t + 0.65); lp.frequency.exponentialRampToValueAtTime(1800, t + dur);
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0, t); noiseGain.gain.linearRampToValueAtTime(0.08, t + 0.12); noiseGain.gain.linearRampToValueAtTime(0.10, t + 0.55); noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  noiseSrc.connect(lp); lp.connect(noiseGain); noiseGain.connect(ctx.destination); noiseSrc.start(t); noiseSrc.stop(t + dur);
-  const sweep = ctx.createOscillator(); sweep.type = "sawtooth";
-  sweep.frequency.setValueAtTime(60, t); sweep.frequency.exponentialRampToValueAtTime(900, t + 0.7); sweep.frequency.exponentialRampToValueAtTime(350, t + dur);
-  const sweepFilter = ctx.createBiquadFilter(); sweepFilter.type = "lowpass";
-  sweepFilter.frequency.setValueAtTime(150, t); sweepFilter.frequency.exponentialRampToValueAtTime(3500, t + 0.7); sweepFilter.frequency.exponentialRampToValueAtTime(800, t + dur);
-  const sweepGain = ctx.createGain();
-  sweepGain.gain.setValueAtTime(0, t); sweepGain.gain.linearRampToValueAtTime(0.05, t + 0.06); sweepGain.gain.linearRampToValueAtTime(0.07, t + 0.5); sweepGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  sweep.connect(sweepFilter); sweepFilter.connect(sweepGain); sweepGain.connect(ctx.destination); sweep.start(t); sweep.stop(t + dur);
-  [392, 523, 659, 784, 1047].forEach((freq, i) => {
-    const sp = ctx.createOscillator(); sp.type = "sine"; sp.frequency.value = freq;
-    const spGain = ctx.createGain(); const onset = 0.55 + i * 0.07;
-    spGain.gain.setValueAtTime(0, t + onset); spGain.gain.linearRampToValueAtTime(0.03, t + onset + 0.04); spGain.gain.exponentialRampToValueAtTime(0.0001, t + onset + 0.45);
-    sp.connect(spGain); spGain.connect(ctx.destination); sp.start(t + onset); sp.stop(t + onset + 0.5);
+  const t=ctx.currentTime, dur=1.5, sr=ctx.sampleRate, bufLen=Math.floor(sr*dur);
+  const buf=ctx.createBuffer(1,bufLen,sr), d=buf.getChannelData(0);
+  for(let i=0;i<bufLen;i++) d[i]=Math.random()*2-1;
+  const noiseSrc=ctx.createBufferSource(); noiseSrc.buffer=buf;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.Q.value=3;
+  lp.frequency.setValueAtTime(80,t); lp.frequency.exponentialRampToValueAtTime(7000,t+0.65); lp.frequency.exponentialRampToValueAtTime(1800,t+dur);
+  const noiseGain=ctx.createGain();
+  noiseGain.gain.setValueAtTime(0,t); noiseGain.gain.linearRampToValueAtTime(0.08,t+0.12); noiseGain.gain.linearRampToValueAtTime(0.10,t+0.55); noiseGain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  noiseSrc.connect(lp); lp.connect(noiseGain); noiseGain.connect(ctx.destination); noiseSrc.start(t); noiseSrc.stop(t+dur);
+  const sweep=ctx.createOscillator(); sweep.type="sawtooth";
+  sweep.frequency.setValueAtTime(60,t); sweep.frequency.exponentialRampToValueAtTime(900,t+0.7); sweep.frequency.exponentialRampToValueAtTime(350,t+dur);
+  const sweepFilter=ctx.createBiquadFilter(); sweepFilter.type="lowpass";
+  sweepFilter.frequency.setValueAtTime(150,t); sweepFilter.frequency.exponentialRampToValueAtTime(3500,t+0.7); sweepFilter.frequency.exponentialRampToValueAtTime(800,t+dur);
+  const sweepGain=ctx.createGain();
+  sweepGain.gain.setValueAtTime(0,t); sweepGain.gain.linearRampToValueAtTime(0.05,t+0.06); sweepGain.gain.linearRampToValueAtTime(0.07,t+0.5); sweepGain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  sweep.connect(sweepFilter); sweepFilter.connect(sweepGain); sweepGain.connect(ctx.destination); sweep.start(t); sweep.stop(t+dur);
+  [392,523,659,784,1047].forEach((freq,i)=>{
+    const sp=ctx.createOscillator(); sp.type="sine"; sp.frequency.value=freq;
+    const spGain=ctx.createGain(), onset=0.55+i*0.07;
+    spGain.gain.setValueAtTime(0,t+onset); spGain.gain.linearRampToValueAtTime(0.03,t+onset+0.04); spGain.gain.exponentialRampToValueAtTime(0.0001,t+onset+0.45);
+    sp.connect(spGain); spGain.connect(ctx.destination); sp.start(t+onset); sp.stop(t+onset+0.5);
   });
 }
-
 function playWinSound(ctx: AudioContext, muted: boolean) {
   if (muted) return;
-  const t = ctx.currentTime; const sr = ctx.sampleRate;
-  const cLen = Math.floor(sr * 0.018); const cBuf = ctx.createBuffer(1, cLen, sr);
-  const cd = cBuf.getChannelData(0);
-  for (let i = 0; i < cLen; i++) cd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / cLen, 1.5);
-  const cs = ctx.createBufferSource(); cs.buffer = cBuf;
-  const cbp = ctx.createBiquadFilter(); cbp.type = "bandpass"; cbp.frequency.value = 5000; cbp.Q.value = 0.6;
-  const cg = ctx.createGain(); cg.gain.setValueAtTime(0.35, t); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.018);
+  const t=ctx.currentTime, sr=ctx.sampleRate;
+  const cLen=Math.floor(sr*0.018), cBuf=ctx.createBuffer(1,cLen,sr), cd=cBuf.getChannelData(0);
+  for(let i=0;i<cLen;i++) cd[i]=(Math.random()*2-1)*Math.pow(1-i/cLen,1.5);
+  const cs=ctx.createBufferSource(); cs.buffer=cBuf;
+  const cbp=ctx.createBiquadFilter(); cbp.type="bandpass"; cbp.frequency.value=5000; cbp.Q.value=0.6;
+  const cg=ctx.createGain(); cg.gain.setValueAtTime(0.35,t); cg.gain.exponentialRampToValueAtTime(0.0001,t+0.018);
   cs.connect(cbp); cbp.connect(cg); cg.connect(ctx.destination); cs.start(t);
-  [311, 415, 523, 622, 784].forEach((freq, i) => {
-    const sp = ctx.createOscillator(); sp.type = "sine"; sp.frequency.value = freq;
-    const sg = ctx.createGain(); const onset = 0.05 + i * 0.07;
-    sg.gain.setValueAtTime(0, t + onset); sg.gain.linearRampToValueAtTime(0.06, t + onset + 0.02); sg.gain.exponentialRampToValueAtTime(0.0001, t + onset + 0.5);
-    sp.connect(sg); sg.connect(ctx.destination); sp.start(t + onset); sp.stop(t + onset + 0.55);
+  [311,415,523,622,784].forEach((freq,i)=>{
+    const sp=ctx.createOscillator(); sp.type="sine"; sp.frequency.value=freq;
+    const sg=ctx.createGain(), onset=0.05+i*0.07;
+    sg.gain.setValueAtTime(0,t+onset); sg.gain.linearRampToValueAtTime(0.06,t+onset+0.02); sg.gain.exponentialRampToValueAtTime(0.0001,t+onset+0.5);
+    sp.connect(sg); sg.connect(ctx.destination); sp.start(t+onset); sp.stop(t+onset+0.55);
   });
 }
 
-// ─── Vertical Reel Item — mirrors Cases.tsx VerticalReelItemBox exactly ────────
+// ─── Vertical reel item — Cases.tsx VerticalReelItemBox clone ──────────────────
 
 function VertReelItem({ item }: { item: BattleItem }) {
   const isOrb = item.id === "__orb__";
   const hex = isOrb ? "#fbbf24" : (RARITY_COLOR[item.rarity] ?? "#888");
   return (
-    <div
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ height: VERT_ITEM_H, width: "100%" }}
-    >
+    <div className="flex-shrink-0 flex items-center justify-center" style={{ height: VERT_ITEM_H, width: "100%" }}>
       <div style={{ filter: `drop-shadow(0 0 10px ${hex}aa)` }}>
         {item.imageUrl
-          ? <img src={item.imageUrl} alt={item.name}
-              style={{ width: 48, height: 48, objectFit: "contain", imageRendering: isOrb ? "auto" : "pixelated" }} />
-          : <div style={{ width: 40, height: 40, backgroundColor: hex, borderRadius: 6 }} />}
+          ? <img src={item.imageUrl} alt={item.name} style={{ width: 52, height: 52, objectFit: "contain", imageRendering: isOrb ? "auto" : "pixelated" }} />
+          : <div style={{ width: 44, height: 44, backgroundColor: hex, borderRadius: 8 }} />}
       </div>
     </div>
   );
 }
 
-// ─── Vertical Reel — self-contained, mirrors Cases.tsx vertical opening exactly ─
+// ─── VertReelColumn — strip animation only, no triangles (placed inside SharedReelBar) ─
 
-interface VertReelProps {
+interface VertReelColumnProps {
   caseItems: CaseItem[];
   result: BattleItem;
   resultChance?: number;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
-  isWinner: boolean;
-  showWinner: boolean;
-  triColor: string; // color of the inward-pointing triangles
-  // Both callbacks fire together — either after main snap (non-rare) or after bonus snap (rare).
-  // This ensures item label never appears before the orb animation completes.
-  onDone?: () => void;
+  onBonusStart?: () => void;
+  onBonusEnd?: () => void;
+  onDone?: () => void; // fires after full sequence (main OR bonus)
 }
 
-function VertReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinner, showWinner, triColor: initialTriColor, onDone }: VertReelProps) {
+function VertReelColumn({ caseItems, result, resultChance, audioCtx, mutedRef, onBonusStart, onBonusEnd, onDone }: VertReelColumnProps) {
   const resultIsRare = resultChance !== undefined && resultChance <= ORB_THRESHOLD;
-
   const mainStrip = useMemo(() => buildStrip(caseItems, result, resultIsRare), []);
-
   const [currentStrip, setCurrentStrip] = useState<BattleItem[]>(mainStrip);
   const [showOrbOverlay, setShowOrbOverlay] = useState(false);
-  const [reelPhase, setReelPhase] = useState<"main" | "orb" | "bonus" | "done">("main");
-  const [activeTriColor, setActiveTriColor] = useState(initialTriColor);
+  const [bonusLabel, setBonusLabel] = useState(false);
 
   const stripRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
-  const allRafsRef = useRef<number[]>([]);
+  const allRafs = useRef<number[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTickIdx = useRef(-1);
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const later = (fn: () => void, ms: number) => {
-    const id = setTimeout(fn, ms);
-    timersRef.current.push(id);
-    return id;
+    const id = setTimeout(fn, ms); timers.current.push(id); return id;
   };
-
-  // Tick monitor reads translateY — same as Cases.tsx startTickMonitor(ref, true)
   const startTick = (el: HTMLDivElement) => {
-    cancelAnimationFrame(rafRef.current);
-    lastTickIdx.current = -1;
+    cancelAnimationFrame(rafRef.current); lastTickIdx.current = -1;
     const loop = () => {
       const mat = window.getComputedStyle(el).transform;
       if (mat && mat !== "none") {
         const vals = mat.match(/matrix.*\((.+)\)/)?.[1].split(",");
-        // vals[5] = ty for 2D matrix(a,b,c,d,tx,ty)
+        // vals[5] = ty for matrix(a,b,c,d,tx,ty)
         const rawY = vals ? Math.abs(parseFloat(vals[5] ?? "0")) : 0;
         const idx = Math.floor(rawY / VERT_ITEM_H);
         if (idx !== lastTickIdx.current && idx > 0 && audioCtx) {
-          lastTickIdx.current = idx;
-          playTick(audioCtx, mutedRef.current);
+          lastTickIdx.current = idx; playTick(audioCtx, mutedRef.current);
         }
       }
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
   };
-
   const stopTick = () => cancelAnimationFrame(rafRef.current);
 
   useEffect(() => {
-    const el = stripRef.current;
-    if (!el) return;
-
+    const el = stripRef.current; if (!el) return;
     const MAIN_DUR = 2200;
-    const RANDOM_OFFSET = Math.floor(Math.random() * 60) - 30; // ±30px, same as Cases.tsx vertical randomOffset
+    const RANDOM_OFFSET = Math.floor(Math.random() * 60) - 30;
     const mainTarget = WINNING_IDX * VERT_ITEM_H + RANDOM_OFFSET;
 
-    // Pre-position: translateY(0) — same as Cases.tsx vertical pre-position
-    el.style.transition = "none";
-    el.style.transform = "translateY(0)";
+    // Pre-position — Cases.tsx: translateY(0) for vertical
+    el.style.transition = "none"; el.style.transform = "translateY(0)";
 
-    // Double rAF → animate (Cases.tsx pattern)
-    const raf1 = requestAnimationFrame(() => {
-      allRafsRef.current.push(raf1);
-      const raf2 = requestAnimationFrame(() => {
-        allRafsRef.current.push(raf2);
-        el.style.transition = `transform ${MAIN_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
+    const r1 = requestAnimationFrame(() => { allRafs.current.push(r1);
+      const r2 = requestAnimationFrame(() => { allRafs.current.push(r2);
+        el.style.transition = `transform ${MAIN_DUR}ms cubic-bezier(0.08,0.82,0.15,1)`;
         el.style.transform = `translateY(-${mainTarget}px)`;
         startTick(el);
 
-        // After main spin: snap (Cases.tsx: duration + 60ms)
         later(() => {
           stopTick();
-          el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
-          el.style.transform = `translateY(-${WINNING_IDX * VERT_ITEM_H}px)`;
+          el.style.transition = "transform 300ms cubic-bezier(0.25,0,0,1)";
+          el.style.transform = `translateY(-${WINNING_IDX*VERT_ITEM_H}px)`;
           if (audioCtx) playStopClick(audioCtx, mutedRef.current);
 
           if (!resultIsRare) {
-            // No bonus — fire done immediately after snap settles
-            later(() => {
-              setReelPhase("done");
-              onDone?.();
-            }, 320);
+            later(() => { onDone?.(); }, 320);
             return;
           }
 
-          // Rare item: show orb overlay (Cases.tsx: setModalMode("bonus_orb"))
+          // Rare: orb overlay (Cases.tsx bonus_orb)
           later(() => {
             setShowOrbOverlay(true);
-            setReelPhase("orb");
             if (audioCtx) playBonusSwoosh(audioCtx, mutedRef.current);
+            onBonusStart?.();
 
             // Build bonus strip — rare-only pool, real item at WINNING_IDX
             const rarePool = caseItems.filter(ci => ci.chance <= ORB_THRESHOLD);
-            const bonusPool = rarePool.length > 0 ? rarePool : caseItems;
-            const bonusStrip: BattleItem[] = Array.from({ length: ITEM_COUNT }, () =>
-              bonusPool[Math.floor(Math.random() * bonusPool.length)]
-            );
+            const pool = rarePool.length > 0 ? rarePool : caseItems;
+            const bonusStrip: BattleItem[] = Array.from({ length: ITEM_COUNT }, () => pool[Math.floor(Math.random()*pool.length)]);
             bonusStrip[WINNING_IDX] = result;
 
-            // After 1200ms orb show: bonus spin (Cases.tsx timing)
             later(() => {
               setShowOrbOverlay(false);
               setCurrentStrip(bonusStrip);
-              setActiveTriColor("#fbbf24"); // gold triangles during bonus (Cases.tsx)
-              setReelPhase("bonus");
-
-              // Pre-position: translateY(0) — Cases.tsx vertical bonus reset
-              el.style.transition = "none";
-              el.style.transform = "translateY(0)";
-
+              setBonusLabel(true);
+              el.style.transition = "none"; el.style.transform = "translateY(0)";
               const BONUS_DUR = 1800;
-              const bonusOffset = Math.floor(Math.random() * 60) - 30;
-              const bonusTarget = WINNING_IDX * VERT_ITEM_H + bonusOffset;
-
-              const braf1 = requestAnimationFrame(() => {
-                allRafsRef.current.push(braf1);
-                const braf2 = requestAnimationFrame(() => {
-                  allRafsRef.current.push(braf2);
-                  el.style.transition = `transform ${BONUS_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
+              const bonusOffset = Math.floor(Math.random()*60)-30;
+              const bonusTarget = WINNING_IDX*VERT_ITEM_H+bonusOffset;
+              const b1 = requestAnimationFrame(() => { allRafs.current.push(b1);
+                const b2 = requestAnimationFrame(() => { allRafs.current.push(b2);
+                  el.style.transition = `transform ${BONUS_DUR}ms cubic-bezier(0.08,0.82,0.15,1)`;
                   el.style.transform = `translateY(-${bonusTarget}px)`;
                   startTick(el);
-
-                  // Snap bonus to real item
                   later(() => {
                     stopTick();
-                    el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
-                    el.style.transform = `translateY(-${WINNING_IDX * VERT_ITEM_H}px)`;
+                    el.style.transition = "transform 300ms cubic-bezier(0.25,0,0,1)";
+                    el.style.transform = `translateY(-${WINNING_IDX*VERT_ITEM_H}px)`;
                     if (audioCtx) playStopClick(audioCtx, mutedRef.current);
-                    setActiveTriColor(initialTriColor); // restore original triangle color
-                    later(() => {
-                      setReelPhase("done");
-                      onDone?.(); // fires AFTER bonus — item name shows only now
-                    }, 320);
-                  }, BONUS_DUR + 60);
+                    setBonusLabel(false);
+                    onBonusEnd?.();
+                    later(() => { onDone?.(); }, 320);
+                  }, BONUS_DUR+60);
                 });
               });
             }, 1200);
           }, 360);
-        }, MAIN_DUR + 60);
+        }, MAIN_DUR+60);
       });
     });
 
     return () => {
-      allRafsRef.current.forEach(cancelAnimationFrame);
-      stopTick();
-      timersRef.current.forEach(clearTimeout);
+      allRafs.current.forEach(cancelAnimationFrame); stopTick();
+      timers.current.forEach(clearTimeout);
     };
   }, []);
 
-  const winnerGlow = showWinner && isWinner
-    ? `drop-shadow(0 0 14px ${activeTriColor}cc)`
-    : undefined;
-
   return (
-    <div style={{ position: "relative", height: VERT_ITEM_H, overflow: "hidden", background: REEL_BG, filter: winnerGlow }}>
-      {/* Left triangle → pointing right (Cases.tsx vertical style) */}
-      <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `13px solid ${activeTriColor}`, zIndex: 100, pointerEvents: "none" }} />
-      {/* Right triangle ← pointing left */}
-      <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: `13px solid ${activeTriColor}`, zIndex: 100, pointerEvents: "none" }} />
-
-      {/* Vertical strip — flex column, same as Cases.tsx vertical layout */}
-      <div ref={stripRef} style={{ display: "flex", flexDirection: "column" }}>
+    <div style={{ position:"relative", height:VERT_ITEM_H, overflow:"hidden", background:REEL_BG }}>
+      {/* Vertical strip — flex column, same as Cases.tsx */}
+      <div ref={stripRef} style={{ display:"flex", flexDirection:"column" }}>
         {currentStrip.map((item, i) => <VertReelItem key={i} item={item} />)}
       </div>
 
-      {/* Orb overlay — Cases.tsx bonus_orb modal exact copy */}
+      {/* Orb overlay — Cases.tsx bonus_orb modal */}
       <AnimatePresence>
         {showOrbOverlay && (
-          <motion.div
-            key="orb-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(1px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
-          >
-            <motion.img
-              key="big-orb"
-              src={bigOrbSrc}
-              alt="Bonus Orb"
-              initial={{ scale: 0.4, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.05 }}
-              style={{ width: 80, height: 80, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 0 20px rgba(251,191,36,0.9)) drop-shadow(0 0 40px rgba(251,191,36,0.5))" }}
-            />
+          <motion.div key="orb-overlay"
+            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.2}}
+            style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)",backdropFilter:"blur(1px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:20}}>
+            <motion.img key="big-orb" src={bigOrbSrc} alt="Orb"
+              initial={{scale:0.4,opacity:0}} animate={{scale:1,opacity:1}}
+              transition={{type:"spring",stiffness:260,damping:18,delay:0.05}}
+              style={{width:80,height:80,objectFit:"contain",imageRendering:"pixelated",filter:"drop-shadow(0 0 20px rgba(251,191,36,0.9)) drop-shadow(0 0 40px rgba(251,191,36,0.5))"}} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* "BONUS!" label during bonus spin */}
-      {reelPhase === "bonus" && (
-        <div style={{ position: "absolute", bottom: 6, left: 0, right: 0, textAlign: "center", zIndex: 15, pointerEvents: "none" }}>
-          <span style={{ fontSize: 9, fontWeight: 900, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 8px rgba(251,191,36,0.7)" }}>BONUS!</span>
+      {bonusLabel && (
+        <div style={{position:"absolute",bottom:6,left:0,right:0,textAlign:"center",zIndex:15,pointerEvents:"none"}}>
+          <span style={{fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:"0.1em",textTransform:"uppercase",textShadow:"0 0 8px rgba(251,191,36,0.7)"}}>BONUS!</span>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Player Column ─────────────────────────────────────────────────────────────
+// ─── SharedReelBar — Cases.tsx exact vertical layout ─────────────────────────
+// One set of triangles spanning all columns, lozenge separators between each column.
 
-interface PlayerColProps {
-  player: BattlePlayer;
+interface ReelEntry {
+  key: string;
   caseItems: CaseItem[];
-  currentRoundResult: BattleItem | null;
-  currentRoundResultChance?: number;
-  revealedItems: { item: BattleItem; chance?: number }[];
-  spinDone: boolean; // shows item label after spin is fully done (incl. bonus)
-  isWinner: boolean;
-  isLoser: boolean;
-  showWinner: boolean;
-  round: number;
+  result: BattleItem;
+  resultChance?: number;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
-  triColor: string;
+  isMaster: boolean; // col[0] fires onDone
+  onBonusStart?: () => void;
+  onBonusEnd?: () => void;
   onDone?: () => void;
 }
 
-function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, spinDone, isWinner, isLoser, showWinner, round, audioCtx, mutedRef, triColor, onDone }: PlayerColProps) {
-  const tc = TEAM_COLORS[player.teamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
-  const rc = currentRoundResult ? (RARITY_COLOR[currentRoundResult.rarity] ?? "#888") : undefined;
-
+function SharedReelBar({ columns, triColor }: { columns: ReelEntry[]; triColor: string }) {
   return (
-    <div className={`flex flex-col min-w-0 transition-all duration-500 ${showWinner && isLoser ? "opacity-30" : ""}`}>
-      {/* Player header */}
-      <div className={`flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border/10 flex-shrink-0 ${showWinner && isWinner ? tc.bg : ""}`}>
-        <div className="flex items-center gap-1.5 min-w-0">
-          <div className={`w-5 h-5 rounded-full border-2 ${tc.border} ${tc.bg} flex-shrink-0 flex items-center justify-center font-black text-[10px] ${tc.text}`}>
-            {player.username.charAt(0).toUpperCase()}
-          </div>
-          <span className={`text-[11px] font-bold truncate ${tc.text}`}>{player.username}</span>
-          {showWinner && isWinner && <Crown className="w-3 h-3 text-yellow-400 fill-yellow-400 flex-shrink-0" />}
-          {player.isBot && <Bot className="w-2.5 h-2.5 text-muted-foreground/40 flex-shrink-0" />}
-        </div>
-        <span className="text-[10px] flex-shrink-0 text-muted-foreground"><ValDisplay value={player.totalValue} size={9} /></span>
-      </div>
+    // Cases.tsx: position:relative wraps triangles; inner flex holds columns + lozenges
+    <div style={{ position: "relative", height: VERT_ITEM_H }}>
+      {/* Left → triangle (Cases.tsx style) */}
+      <div style={{ position:"absolute", left:0, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"12px solid transparent", borderBottom:"12px solid transparent", borderLeft:`14px solid ${triColor}`, zIndex:200, pointerEvents:"none" }} />
+      {/* Right ← triangle */}
+      <div style={{ position:"absolute", right:0, top:"50%", transform:"translateY(-50%)", width:0, height:0, borderTop:"12px solid transparent", borderBottom:"12px solid transparent", borderRight:`14px solid ${triColor}`, zIndex:200, pointerEvents:"none" }} />
 
-      {/* Vertical Reel */}
-      <div className="flex-shrink-0">
-        {currentRoundResult ? (
-          <VertReel
-            key={round}
-            caseItems={caseItems}
-            result={currentRoundResult}
-            resultChance={currentRoundResultChance}
-            audioCtx={audioCtx}
-            mutedRef={mutedRef}
-            isWinner={isWinner}
-            showWinner={showWinner}
-            triColor={triColor}
-            onDone={onDone}
-          />
-        ) : (
-          // Placeholder before round starts — static items
-          <div style={{ position: "relative", height: VERT_ITEM_H, overflow: "hidden", background: REEL_BG }}>
-            <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `13px solid ${triColor}40`, zIndex: 100 }} />
-            <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderRight: `13px solid ${triColor}40`, zIndex: 100 }} />
-            {caseItems.length > 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <VertReelItem item={caseItems[Math.floor(Math.random() * caseItems.length)]} />
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/20">
-                <Package className="w-8 h-8" />
+      <div style={{ display:"flex", height:"100%" }}>
+        {columns.map((col, idx) => (
+          <React.Fragment key={col.key}>
+            {idx > 0 && (
+              // Lozenge separator — Cases.tsx exact
+              <div style={{ width:28, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:10, position:"relative" }}>
+                <div style={{ width:22, height:12, background:triColor, clipPath:"polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
               </div>
             )}
-          </div>
-        )}
-      </div>
-
-      {/* Item label — only shows after full spin (including bonus) completes */}
-      <div className="flex-shrink-0 h-9 flex flex-col items-center justify-center border-b border-border/10 bg-background/30">
-        {spinDone && currentRoundResult ? (
-          <>
-            <div className="text-[10px] font-bold truncate px-2 text-center leading-tight" style={{ color: rc }}>{currentRoundResult.name}</div>
-            <div className="text-[10px] text-muted-foreground/70"><ValDisplay value={currentRoundResult.value} size={9} /></div>
-          </>
-        ) : (
-          <div className="text-[10px] text-muted-foreground/20">—</div>
-        )}
-      </div>
-
-      {/* Item history */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {revealedItems.length === 0 ? (
-          <div className="text-[10px] text-muted-foreground/20 text-center py-3">—</div>
-        ) : (
-          [...revealedItems].reverse().map(({ item, chance }, i) => {
-            const c = RARITY_COLOR[item.rarity] ?? "#888";
-            return (
-              <motion.div key={revealedItems.length - 1 - i}
-                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-1.5 border-b border-border/10 px-2 py-1 hover:bg-white/[0.03]"
-              >
-                <div className="w-7 h-7 flex-shrink-0 rounded-md flex items-center justify-center" style={{ background: `${c}22`, borderLeft: `3px solid ${c}`, borderRight: `3px solid ${c}` }}>
-                  {item.imageUrl
-                    ? <img src={item.imageUrl} alt={item.name} style={{ width: 18, height: 18, objectFit: "contain", imageRendering: "pixelated" }} />
-                    : <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: c }} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[9px] font-semibold truncate leading-tight" style={{ color: c }}>{item.name}</div>
-                  <div className="text-[9px] text-muted-foreground/70"><ValDisplay value={item.value} size={8} /></div>
-                </div>
-                {chance != null && <div className="text-[8px] text-muted-foreground/40 flex-shrink-0">{chance.toFixed(2)}%</div>}
-              </motion.div>
-            );
-          })
-        )}
+            {/* column wrapper: overflow:visible outside, overflow:hidden inside (Cases.tsx) */}
+            <div style={{ flex:1, minWidth:0, position:"relative", overflow:"visible" }}>
+              <VertReelColumn
+                caseItems={col.caseItems}
+                result={col.result}
+                resultChance={col.resultChance}
+                audioCtx={col.audioCtx}
+                mutedRef={col.mutedRef}
+                onBonusStart={col.onBonusStart}
+                onBonusEnd={col.onBonusEnd}
+                onDone={col.isMaster ? col.onDone : undefined}
+              />
+            </div>
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Lobby Slot ────────────────────────────────────────────────────────────────
+// ─── Item mini card (for done state history grid) ──────────────────────────────
+
+function ItemCard({ item, chance }: { item: BattleItem; chance?: number }) {
+  const c = RARITY_COLOR[item.rarity] ?? "#888";
+  return (
+    <div className="flex items-center gap-1.5 rounded-md px-1.5 py-1 border border-border/20 bg-background/30 hover:bg-background/50 transition-colors min-w-0">
+      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded" style={{ background: `${c}18`, borderBottom: `2px solid ${c}88` }}>
+        {item.imageUrl
+          ? <img src={item.imageUrl} alt={item.name} style={{ width: 20, height: 20, objectFit: "contain", imageRendering: "pixelated" }} />
+          : <div className="w-4 h-4 rounded" style={{ backgroundColor: c }} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[9px] font-semibold truncate leading-tight" style={{ color: c }}>{item.name}</div>
+        <div className="text-[9px] text-muted-foreground/70 flex items-center gap-0.5"><ValDisplay value={item.value} size={8} /></div>
+      </div>
+      {chance != null && <div className="text-[8px] text-muted-foreground/30 flex-shrink-0">{chance.toFixed(2)}%</div>}
+    </div>
+  );
+}
+
+// ─── Lobby Slot ─────────────────────────────────────────────────────────────────
 
 function LobbySlot({ player, teamIndex, isCreator, addingBot, onAddBot }: {
-  player?: BattlePlayer; teamIndex: number;
-  isCreator: boolean; addingBot: boolean; onAddBot: () => void;
+  player?: BattlePlayer; teamIndex: number; isCreator: boolean; addingBot: boolean; onAddBot: () => void;
 }) {
   const tc = TEAM_COLORS[teamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
   return (
@@ -627,54 +455,52 @@ interface Props {
   onClose: () => void;
 }
 
-export function BattleScreen({ battle: initialBattle, currentUserId, isCreator = false, onAddBot, onLeave, onCopyBattle, onClose }: Props) {
-  const [liveBattle, setLiveBattle] = useState<BattleResult>(initialBattle);
-  const [animBattle, setAnimBattle] = useState<BattleResult | null>(
-    initialBattle.status === "completed" ? initialBattle : null
+export function BattleScreen({ battle: initialBattle, currentUserId, isCreator=false, onAddBot, onLeave, onCopyBattle, onModifyBattle, onClose }: Props) {
+  const [liveBattle, setLiveBattle]       = useState<BattleResult>(initialBattle);
+  const [animBattle, setAnimBattle]       = useState<BattleResult|null>(initialBattle.status==="completed" ? initialBattle : null);
+  const [phase, setPhase]                 = useState<"waiting"|"countdown"|"playing"|"tiebreaker_pending"|"tiebreaker"|"done">(
+    initialBattle.status==="completed" ? "countdown" : "waiting"
   );
-  const [phase, setPhase] = useState<"waiting" | "countdown" | "playing" | "tiebreaker_pending" | "tiebreaker" | "done">(
-    initialBattle.status === "completed" ? "countdown" : "waiting"
-  );
-  const [countdown, setCountdown] = useState(3);
-  const [currentRound, setCurrentRound] = useState(0);
-  const [spinDone, setSpinDone] = useState(false);   // shows item label — only true after full spin+bonus
+  const [countdown, setCountdown]         = useState(3);
+  const [currentRound, setCurrentRound]   = useState(0);
+  const [spinDone, setSpinDone]           = useState(false);
   const [revealedRounds, setRevealedRounds] = useState(0);
-  const [showWinner, setShowWinner] = useState(false);
-  const [addingBot, setAddingBot] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [leaveConfirm, setLeaveConfirm] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [showWinner, setShowWinner]       = useState(false);
+  const [bonusActive, setBonusActive]     = useState(false);
+  const [addingBot, setAddingBot]         = useState(false);
+  const [leaving, setLeaving]             = useState(false);
+  const [leaveConfirm, setLeaveConfirm]   = useState(false);
+  const [muted, setMuted]                 = useState(false);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const mutedRef = useRef(false);
+  const timerRef    = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const pollRef     = useRef<ReturnType<typeof setInterval>|null>(null);
+  const audioCtxRef = useRef<AudioContext|null>(null);
+  const mutedRef    = useRef(false);
 
   const initAudio = useCallback(() => {
     if (!audioCtxRef.current) audioCtxRef.current = createAudioCtx();
-    if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+    if (audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume();
   }, []);
 
   const toggleMute = useCallback(() => {
-    mutedRef.current = !mutedRef.current;
-    setMuted(mutedRef.current);
+    mutedRef.current = !mutedRef.current; setMuted(mutedRef.current);
   }, []);
 
-  const tick = useCallback((fn: () => void, ms: number) => {
+  const tick = useCallback((fn: ()=>void, ms: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(fn, ms);
   }, []);
 
-  // Polling for waiting battles
+  // Poll for waiting battles
   useEffect(() => {
-    if (phase !== "waiting") return;
+    if (phase!=="waiting") return;
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/battles/${liveBattle.id}`);
         if (res.ok) {
           const data: BattleResult = await res.json();
           setLiveBattle(data);
-          if (data.status === "completed") {
+          if (data.status==="completed") {
             setAnimBattle(data); setPhase("countdown");
             if (pollRef.current) clearInterval(pollRef.current);
           }
@@ -686,80 +512,60 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
 
   // Countdown
   useEffect(() => {
-    if (phase !== "countdown") return;
-    if (countdown <= 0) { setPhase("playing"); return; }
-    tick(() => setCountdown((c) => c - 1), 900);
+    if (phase!=="countdown") return;
+    if (countdown<=0) { setPhase("playing"); return; }
+    tick(() => setCountdown(c=>c-1), 900);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [phase, countdown]);
 
-  // Playing — detect when all rounds done; individual rounds driven by onDone callback
+  // Check when all rounds done
   useEffect(() => {
-    if (phase !== "playing" || !animBattle) return;
-    const totalRounds = animBattle.rounds?.length ?? 0;
-    if (currentRound >= totalRounds) {
-      if (animBattle.isDraw) {
-        tick(() => setPhase("tiebreaker_pending"), 800);
-      } else {
-        tick(() => {
-          setShowWinner(true); setPhase("done");
-          if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
-        }, 1000);
-      }
+    if (phase!=="playing"||!animBattle) return;
+    const total = animBattle.rounds?.length??0;
+    if (currentRound>=total) {
+      if (animBattle.isDraw) { tick(()=>setPhase("tiebreaker_pending"),800); }
+      else { tick(()=>{ setShowWinner(true); setPhase("done"); if(audioCtxRef.current) playWinSound(audioCtxRef.current,mutedRef.current); },1000); }
     }
   }, [phase, currentRound, animBattle]);
 
-  // Tiebreaker pending → ready
   useEffect(() => {
-    if (phase !== "tiebreaker_pending") return;
-    const t = setTimeout(() => setPhase("tiebreaker"), 500);
-    return () => clearTimeout(t);
+    if (phase!=="tiebreaker_pending") return;
+    const t=setTimeout(()=>setPhase("tiebreaker"),500); return ()=>clearTimeout(t);
   }, [phase]);
 
-  // Callback from master column (col[0]) — fires when the FULL spin sequence is complete
+  // Master callback — fires when full spin sequence is complete (incl. bonus)
   const handleDone = useCallback(() => {
-    if (phase === "tiebreaker") {
-      tick(() => {
-        setShowWinner(true); setPhase("done");
-        if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
-      }, 400);
+    if (phase==="tiebreaker") {
+      tick(()=>{ setShowWinner(true); setPhase("done"); if(audioCtxRef.current) playWinSound(audioCtxRef.current,mutedRef.current); },400);
       return;
     }
-    // Show label + advance round
     setSpinDone(true);
-    setRevealedRounds(r => r + 1);
-    tick(() => {
-      setSpinDone(false);
-      setCurrentRound(r => r + 1);
-    }, 900);
+    setRevealedRounds(r=>r+1);
+    tick(()=>{ setSpinDone(false); setCurrentRound(r=>r+1); }, 900);
   }, [phase, tick]);
 
-  const handleAddBot = useCallback(async () => {
-    if (!onAddBot || addingBot) return;
-    initAudio();
-    setAddingBot(true);
+  const handleAddBot = useCallback(async ()=>{
+    if (!onAddBot||addingBot) return; initAudio(); setAddingBot(true);
     try {
       const result = await onAddBot(liveBattle.id);
       if (result) {
         setLiveBattle(result as BattleResult);
-        if ((result as BattleResult).status === "completed") {
-          setAnimBattle(result as BattleResult); setPhase("countdown");
-        }
+        if ((result as BattleResult).status==="completed") { setAnimBattle(result as BattleResult); setPhase("countdown"); }
       }
     } finally { setAddingBot(false); }
-  }, [onAddBot, addingBot, liveBattle.id, initAudio]);
+  }, [onAddBot,addingBot,liveBattle.id,initAudio]);
 
-  const handleLeave = useCallback(async () => {
-    if (!onLeave || leaving) return;
-    setLeaving(true);
+  const handleLeave = useCallback(async ()=>{
+    if (!onLeave||leaving) return; setLeaving(true);
     try { await onLeave(liveBattle.id); onClose(); }
     finally { setLeaving(false); setLeaveConfirm(false); }
-  }, [onLeave, leaving, liveBattle.id, onClose]);
+  }, [onLeave,leaving,liveBattle.id,onClose]);
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  // ─── Derived ───────────────────────────────────────────────────────────────
 
   const battle = animBattle ?? liveBattle;
   const players = battle.players;
-  const rounds = animBattle?.rounds ?? [];
+  const rounds  = animBattle?.rounds ?? [];
   const totalRounds = rounds.length;
   const winnerTeamIndex = battle.winnerTeamIndex;
   const gameMode = liveBattle.gameMode || "1v1";
@@ -767,164 +573,150 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   const maxPlayers = liveBattle.maxPlayers;
   const numTeams = getNumTeams(gameMode);
   const playersPerTeam = getPlayersPerTeam(gameMode);
-  const isTeamBattle = numTeams === 2 && playersPerTeam > 1;
 
-  const currentRoundData = (phase === "tiebreaker" || phase === "tiebreaker_pending")
-    ? rounds[rounds.length - 1] ?? null
-    : rounds[currentRound] ?? null;
-  const caseForRound = phase === "tiebreaker" || phase === "tiebreaker_pending"
-    ? (animBattle?.cases?.[rounds.length - 1] ?? animBattle?.cases?.[0])
-    : (animBattle?.cases?.[currentRound] ?? animBattle?.cases?.[0]);
-  const caseItemsForRound: CaseItem[] = (caseForRound?.items ?? []) as CaseItem[];
+  // Sorted players
+  const sortedPlayers = useMemo(() =>
+    [...players].sort((a,b)=>(a.slotIndex??0)-(b.slotIndex??0)), [players]);
 
-  const teamIndices = [...new Set(players.map((p) => p.teamIndex))].sort();
-  const occupiedSlots = new Map<number, BattlePlayer>();
-  for (const p of liveBattle.players) occupiedSlots.set(p.slotIndex ?? 0, p);
-  const totalPrize = (liveBattle.cases ?? []).reduce((s, c) => s + (c.price ?? 0), 0) * maxPlayers;
+  const teamIndices = useMemo(() =>
+    [...new Set(sortedPlayers.map(p=>p.teamIndex))].sort(), [sortedPlayers]);
 
-  const runningTeamTotals = useMemo(() => {
-    const totals: Record<number, number> = {};
-    for (const ti of teamIndices) totals[ti] = 0;
-    for (const round of rounds.slice(0, revealedRounds)) {
-      for (const res of round.results) {
-        const p = players.find(pl => String(pl.userId) === String(res.userId));
-        if (p != null) totals[p.teamIndex] = (totals[p.teamIndex] ?? 0) + res.item.value;
-      }
-    }
-    return totals;
-  }, [revealedRounds, rounds, players, teamIndices]);
+  const currentRoundData = (phase==="tiebreaker"||phase==="tiebreaker_pending")
+    ? rounds[rounds.length-1]??null
+    : rounds[currentRound]??null;
 
-  // Triangle color: gold during bonus handled inside VertReel; here we pass the base color
-  const baseTriColor = "#a78bfa"; // purple, same as Cases.tsx default
+  const caseForRound = (phase==="tiebreaker"||phase==="tiebreaker_pending")
+    ? (animBattle?.cases?.[rounds.length-1]??animBattle?.cases?.[0])
+    : (animBattle?.cases?.[currentRound]??animBattle?.cases?.[0]);
+  const caseItemsForRound: CaseItem[] = (caseForRound?.items??[]) as CaseItem[];
 
-  // Render a single player column
-  const renderPlayerCol = (player: BattlePlayer, colIdx: number) => {
-    const isMasterCol = colIdx === 0;
-    const isWinner = winnerTeamIndex !== undefined && player.teamIndex === winnerTeamIndex;
-    const isLoser = winnerTeamIndex !== undefined && !isWinner;
-    const roundResult = currentRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null;
-    const roundResultChance = roundResult
-      ? (caseItemsForRound as any[]).find(ci => ci.id === roundResult.id || (ci.name === roundResult.name && ci.value === roundResult.value))?.chance
-      : undefined;
-    const revealedItems = rounds.slice(0, revealedRounds).map((r, ri) => {
-      const item = r.results.find(res => String(res.userId) === String(player.userId))?.item;
-      if (!item) return null;
-      const catalogItem = animBattle?.cases?.[ri]?.items.find(ci => ci.id === item.id || (ci.name === item.name && ci.value === item.value));
-      return { item, chance: (catalogItem as any)?.chance };
-    }).filter(Boolean) as { item: BattleItem; chance?: number }[];
+  const occupiedSlots = useMemo(()=>{
+    const m=new Map<number,BattlePlayer>();
+    for(const p of liveBattle.players) m.set(p.slotIndex??0,p);
+    return m;
+  },[liveBattle.players]);
 
-    return (
-      <PlayerColumn
-        key={player.userId}
-        player={player}
-        caseItems={caseItemsForRound}
-        currentRoundResult={roundResult}
-        currentRoundResultChance={roundResultChance}
-        revealedItems={revealedItems}
-        spinDone={spinDone}
-        isWinner={isWinner}
-        isLoser={isLoser}
-        showWinner={showWinner}
-        round={phase === "tiebreaker" ? currentRound + 1000 : currentRound}
-        audioCtx={isMasterCol ? audioCtxRef.current : null}
-        mutedRef={mutedRef}
-        triColor={baseTriColor}
-        onDone={isMasterCol ? handleDone : undefined}
-      />
-    );
-  };
+  const totalPrize = useMemo(()=>
+    (liveBattle.cases??[]).reduce((s,c)=>s+(c.price??0),0)*maxPlayers, [liveBattle.cases,maxPlayers]);
+
+  // Triangle color: gold during bonus, purple otherwise
+  const triColor = bonusActive ? "#fbbf24" : "#a78bfa";
+
+  // Build reel entries for SharedReelBar
+  const reelEntries = useMemo((): ReelEntry[] => {
+    if (!animBattle||!currentRoundData) return [];
+    return sortedPlayers.map((player,idx)=>{
+      const result = currentRoundData.results.find(r=>String(r.userId)===String(player.userId))?.item??null;
+      if (!result) return null;
+      const catalogItem = caseItemsForRound.find(ci=>ci.id===result.id||(ci.name===result.name&&ci.value===result.value));
+      return {
+        key: `${player.userId}-${currentRound}`,
+        caseItems: caseItemsForRound,
+        result,
+        resultChance: (catalogItem as any)?.chance,
+        audioCtx: idx===0 ? audioCtxRef.current : null,
+        mutedRef,
+        isMaster: idx===0,
+        onBonusStart: idx===0 ? ()=>setBonusActive(true) : undefined,
+        onBonusEnd:   idx===0 ? ()=>setBonusActive(false) : undefined,
+        onDone: idx===0 ? handleDone : undefined,
+      };
+    }).filter(Boolean) as ReelEntry[];
+  }, [animBattle, currentRoundData, sortedPlayers, caseItemsForRound, currentRound, handleDone]);
+
+  // Item lookup helper
+  const getPlayerRoundItem = useCallback((player: BattlePlayer, roundIdx: number) => {
+    const round = rounds[roundIdx];
+    if (!round) return null;
+    const res = round.results.find(r=>String(r.userId)===String(player.userId));
+    if (!res) return null;
+    const catalogItem = animBattle?.cases?.[roundIdx]?.items.find(ci=>ci.id===res.item.id||(ci.name===res.item.name&&ci.value===res.item.value));
+    return { item: res.item, chance: (catalogItem as any)?.chance };
+  }, [rounds, animBattle]);
+
+  const isPlaying = phase==="playing"||phase==="tiebreaker"||phase==="tiebreaker_pending";
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background" onClick={initAudio}>
+    // z-[70] — above sidebar z-[60] and mobile backdrop z-[55]
+    <div className="fixed inset-0 z-[70] flex flex-col bg-background" onClick={initAudio}>
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border/20 bg-card/40">
-        <Button variant="ghost" size="sm" onClick={onClose}
-          className="gap-1 text-muted-foreground hover:text-foreground text-xs font-bold px-2 h-8">
+      {/* ── Top bar ────────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border/20 bg-card/60 backdrop-blur">
+        <button onClick={onClose}
+          className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-xs font-bold px-2 h-8 rounded-md hover:bg-white/5 transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" />Back
-        </Button>
+        </button>
+        {/* Case pills */}
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0 scrollbar-none">
-          {liveBattle.cases?.map((c, i) => {
-            const active = (phase === "playing" || phase === "tiebreaker") && i === (phase === "tiebreaker" ? rounds.length - 1 : currentRound);
+          {liveBattle.cases?.map((c,i)=>{
+            const active=(isPlaying)&&i===(phase==="tiebreaker"?rounds.length-1:currentRound);
             return (
-              <div key={c.id}
-                className={`flex-shrink-0 flex items-center gap-1 rounded-md px-1.5 py-0.5 border text-[10px] font-semibold transition-all ${
-                  active ? "border-primary bg-primary/15 text-foreground" : "border-border/30 text-muted-foreground/50"
-                }`}>
-                <Package className={`w-2.5 h-2.5 ${active ? "text-primary" : ""}`} />
+              <div key={c.id} className={`flex-shrink-0 flex items-center gap-1 rounded-md px-1.5 py-0.5 border text-[10px] font-semibold transition-all ${
+                active?"border-primary bg-primary/15 text-foreground":"border-border/30 text-muted-foreground/50"}`}>
+                <Package className={`w-2.5 h-2.5 ${active?"text-primary":""}`} />
                 <span className="truncate max-w-[60px]">{c.name}</span>
               </div>
             );
           })}
         </div>
+        {/* Right side */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" /><span>0</span></div>
           <Badge variant="outline" className="text-[10px] font-bold h-5 px-1.5">{gameMode}</Badge>
-          {battleType !== "normal" && (
+          {battleType!=="normal" && (
             <Badge className={`text-[10px] font-bold h-5 px-1.5 border ${
-              battleType === "shared" ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-              : battleType === "top_pull" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
-              : battleType === "crazy" ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
-              : "bg-orange-500/20 text-orange-300 border-orange-500/40"
-            }`}>
-              {battleType === "shared" ? "SHARED" : battleType === "top_pull" ? "TOP" : battleType === "crazy" ? "🃏 CRAZY" : "TERM"}
+              battleType==="shared"?"bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+              :battleType==="top_pull"?"bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
+              :battleType==="crazy"?"bg-purple-500/20 text-purple-300 border-purple-500/40"
+              :"bg-orange-500/20 text-orange-300 border-orange-500/40"}`}>
+              {battleType==="shared"?"SHARED":battleType==="top_pull"?"TOP PULL":battleType==="crazy"?"🃏 CRAZY":"TERMINAL"}
             </Badge>
           )}
-          <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-0.5">
-            <ValDisplay value={totalPrize} size={10} />
-          </div>
-          <button onClick={(e) => { e.stopPropagation(); toggleMute(); initAudio(); }}
-            className="w-7 h-7 rounded-md border border-border/30 bg-background/40 flex items-center justify-center hover:border-primary/50 hover:bg-primary/10 transition-all">
-            {muted ? <VolumeX className="w-3.5 h-3.5 text-muted-foreground" /> : <Volume2 className="w-3.5 h-3.5" />}
+          <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-0.5">
+            <ValDisplay value={totalPrize} size={10}/>
+          </span>
+          <button onClick={e=>{e.stopPropagation();toggleMute();initAudio();}}
+            className="w-7 h-7 rounded-md border border-border/30 bg-background/40 flex items-center justify-center hover:border-primary/50 transition-all">
+            {muted?<VolumeX className="w-3.5 h-3.5 text-muted-foreground"/>:<Volume2 className="w-3.5 h-3.5"/>}
           </button>
         </div>
       </div>
 
-      {/* ── Waiting Lobby ────────────────────────────────────────────────── */}
-      {phase === "waiting" && (
+      {/* ── WAITING LOBBY ──────────────────────────────────────────── */}
+      {phase==="waiting" && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-6">
           <div className="text-center">
             <div className="text-xl font-black mb-1">Waiting for players...</div>
-            <div className="text-sm text-muted-foreground">
-              {isCreator ? "Add bots to fill empty slots, or wait for others." : "Waiting for the host to start."}
-            </div>
+            <div className="text-sm text-muted-foreground">{isCreator?"Add bots to fill slots, or wait for others.":"Waiting for the host to start."}</div>
           </div>
           <div className="flex gap-3 w-full max-w-2xl">
-            {Array.from({ length: numTeams }, (_, teamIdx) => {
-              const ppTeam = maxPlayers / numTeams;
+            {Array.from({length:numTeams},(_,teamIdx)=>{
+              const ppTeam=maxPlayers/numTeams;
               return (
                 <React.Fragment key={teamIdx}>
-                  {teamIdx > 0 && <div className="flex items-center px-1"><div className="text-xl font-black text-muted-foreground/30">VS</div></div>}
+                  {teamIdx>0&&<div className="flex items-center px-1"><div className="text-xl font-black text-muted-foreground/30">VS</div></div>}
                   <div className="flex gap-2 flex-1">
-                    {Array.from({ length: ppTeam }, (_, pi) => {
-                      const slotIdx = teamIdx * ppTeam + pi;
-                      return (
-                        <LobbySlot key={slotIdx} teamIndex={teamIdx}
-                          player={occupiedSlots.get(slotIdx)} isCreator={isCreator}
-                          addingBot={addingBot} onAddBot={handleAddBot} />
-                      );
+                    {Array.from({length:ppTeam},(_,pi)=>{
+                      const slotIdx=teamIdx*ppTeam+pi;
+                      return <LobbySlot key={slotIdx} teamIndex={teamIdx} player={occupiedSlots.get(slotIdx)} isCreator={isCreator} addingBot={addingBot} onAddBot={handleAddBot}/>;
                     })}
                   </div>
                 </React.Fragment>
               );
             })}
           </div>
-          {onLeave && !leaveConfirm && (
-            <button onClick={() => setLeaveConfirm(true)}
-              className="text-xs text-muted-foreground/40 hover:text-red-400 transition-colors flex items-center gap-1.5 mt-2">
-              <LogOut className="w-3.5 h-3.5" />Leave battle
+          {onLeave&&!leaveConfirm&&(
+            <button onClick={()=>setLeaveConfirm(true)} className="text-xs text-muted-foreground/40 hover:text-red-400 transition-colors flex items-center gap-1.5 mt-2">
+              <LogOut className="w-3.5 h-3.5"/>Leave battle
             </button>
           )}
-          {onLeave && leaveConfirm && (
+          {onLeave&&leaveConfirm&&(
             <div className="flex flex-col items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-3">
-              <div className="text-sm font-semibold text-red-400">
-                {isCreator ? "Cancel and refund everyone?" : "Leave and get refunded?"}
-              </div>
+              <div className="text-sm font-semibold text-red-400">{isCreator?"Cancel and refund everyone?":"Leave and get refunded?"}</div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setLeaveConfirm(false)} disabled={leaving}>Stay</Button>
+                <Button size="sm" variant="outline" onClick={()=>setLeaveConfirm(false)} disabled={leaving}>Stay</Button>
                 <Button size="sm" onClick={handleLeave} disabled={leaving} className="bg-red-600 hover:bg-red-700 text-white gap-1.5">
-                  {leaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
-                  {isCreator ? "Cancel" : "Leave"}
+                  {leaving?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:<LogOut className="w-3.5 h-3.5"/>}
+                  {isCreator?"Cancel":"Leave"}
                 </Button>
               </div>
             </div>
@@ -932,181 +724,274 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         </div>
       )}
 
-      {/* ── Countdown overlay ─────────────────────────────────────────────── */}
+      {/* ── COUNTDOWN ──────────────────────────────────────────────── */}
       <AnimatePresence>
-        {phase === "countdown" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        {phase==="countdown"&&(
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
             className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
             <AnimatePresence mode="wait">
               <motion.div key={countdown}
-                initial={{ scale: 2.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.5 }}
+                initial={{scale:2.5,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:0.5,opacity:0}} transition={{duration:0.5}}
                 className="text-8xl font-black text-primary drop-shadow-[0_0_60px_rgba(139,92,246,0.9)]">
-                {countdown === 0 ? "GO!" : countdown}
+                {countdown===0?"GO!":countdown}
               </motion.div>
             </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Tiebreaker overlay ────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {(phase === "tiebreaker" || phase === "tiebreaker_pending") && !showWinner && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[5] flex flex-col items-center justify-center pointer-events-none">
-            <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 260, damping: 18 }}
-              className="flex flex-col items-center gap-2 bg-background/70 backdrop-blur px-8 py-4 rounded-2xl border border-yellow-500/30">
-              <div className="text-4xl">🤝</div>
-              <div className="text-3xl font-black text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.8)]">DRAW!</div>
-              <div className="text-sm font-bold text-muted-foreground animate-pulse">Tiebreaker spin...</div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Battle animation ──────────────────────────────────────────────── */}
-      {(phase === "playing" || phase === "tiebreaker" || phase === "tiebreaker_pending" || phase === "done") && animBattle && (
+      {/* ── PLAYING — Battle animation ─────────────────────────────── */}
+      {(isPlaying||phase==="done")&&animBattle&&(
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
-          {/* Round progress */}
-          {totalRounds > 0 && (
-            <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 border-b border-border/10">
-              {rounds.map((_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  i < revealedRounds ? "bg-primary" : i === currentRound && !spinDone ? "bg-primary/50 animate-pulse" : "bg-border/30"
-                }`} />
-              ))}
-              <span className="text-[10px] text-muted-foreground ml-1">
-                Round <span className="text-foreground font-bold">{Math.min(currentRound + 1, totalRounds)}</span>/{totalRounds}
-              </span>
-            </div>
-          )}
+          {/* DRAW overlay */}
+          <AnimatePresence>
+            {(phase==="tiebreaker"||phase==="tiebreaker_pending")&&!showWinner&&(
+              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                className="absolute inset-x-0 top-14 z-[5] flex justify-center pointer-events-none">
+                <motion.div initial={{scale:0.6,opacity:0}} animate={{scale:1,opacity:1}} transition={{type:"spring",stiffness:260,damping:18}}
+                  className="flex items-center gap-3 bg-background/80 backdrop-blur px-6 py-2.5 rounded-2xl border border-yellow-500/30">
+                  <span className="text-2xl">🤝</span>
+                  <span className="text-2xl font-black text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]">DRAW!</span>
+                  <span className="text-sm font-bold text-muted-foreground animate-pulse">Tiebreaker...</span>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Team-grouped layout (2v2, 3v3) */}
-          {isTeamBattle ? (
-            <div className="flex-1 flex overflow-hidden min-h-0">
-              {teamIndices.map((teamIdx, ti) => {
-                const tc = TEAM_COLORS[teamIdx % TEAM_COLORS.length];
-                const teamPlayers = players.filter(p => p.teamIndex === teamIdx).sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0));
-                const isWinningTeam = winnerTeamIndex !== undefined && teamIdx === winnerTeamIndex;
-                const isLosingTeam = winnerTeamIndex !== undefined && !isWinningTeam;
-                const teamTotal = runningTeamTotals[teamIdx] ?? 0;
-                const baseColIdx = ti * playersPerTeam;
-                return (
-                  <React.Fragment key={teamIdx}>
-                    {ti > 0 && (
-                      <div className="flex-shrink-0 flex flex-col items-center justify-center bg-background/60 border-x border-border/20 z-10" style={{ width: 36 }}>
-                        <span className="font-black text-muted-foreground/40 text-sm [writing-mode:vertical-lr]">VS</span>
-                      </div>
-                    )}
-                    <div className={`flex-1 flex flex-col min-w-0 border-2 transition-all duration-500 ${
-                      showWinner ? isWinningTeam ? `${tc.border} ${tc.bg}` : isLosingTeam ? "border-border/20 opacity-40" : "border-border/20" : "border-border/20"
-                    }`}>
-                      <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border/10 ${tc.bg}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${tc.solid}`} />
-                          <span className={`text-xs font-black ${tc.text}`}>Team {ti + 1}</span>
-                          {showWinner && isWinningTeam && <Crown className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />}
-                        </div>
-                        <div className={`text-xs font-bold ${showWinner && isWinningTeam ? tc.text : "text-muted-foreground"}`}>
-                          <ValDisplay value={teamTotal} size={10} />
-                        </div>
-                      </div>
-                      <div className="flex-1 flex overflow-hidden min-h-0 divide-x divide-border/10">
-                        {teamPlayers.map((player, pi) => (
-                          <div key={player.userId} className="flex-1 min-w-0 flex flex-col">
-                            {renderPlayerCol(player, baseColIdx + pi)}
+          {/* ── DONE STATE: Winners panel + item grid ─────────────── */}
+          {phase==="done"&&showWinner ? (
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+
+              {/* Winners panel */}
+              <div className="flex-shrink-0 border-b border-border/20 bg-card/30 px-4 py-4">
+                <div className="text-center mb-3">
+                  <span className="text-lg font-black text-foreground tracking-wide">
+                    {battleType==="shared" ? "🤝 Shared!" : "🏆 Winners"}
+                  </span>
+                </div>
+
+                {/* Winner cards */}
+                {battleType==="shared" ? (
+                  <div className="text-center text-sm text-muted-foreground">
+                    Everyone gets <span className="font-bold text-foreground"><ValDisplay value={Math.floor(totalPrize/Math.max(sortedPlayers.filter(p=>!p.isBot).length,1))} size={12}/></span>
+                  </div>
+                ) : winnerTeamIndex!==undefined && (
+                  <div className="flex justify-center gap-3 flex-wrap">
+                    {sortedPlayers.filter(p=>p.teamIndex===winnerTeamIndex).map(winner=>{
+                      const tc=TEAM_COLORS[winner.teamIndex%TEAM_COLORS.length]??TEAM_COLORS[0];
+                      const isMe=String(winner.userId)===String(currentUserId);
+                      const bestItem=rounds.length>0
+                        ?[...Array(rounds.length)].map((_,ri)=>getPlayerRoundItem(winner,ri)?.item).filter(Boolean).sort((a,b)=>(b?.value??0)-(a?.value??0))[0]??null
+                        :null;
+                      return (
+                        <motion.div key={winner.userId}
+                          initial={{scale:0.8,opacity:0}} animate={{scale:1,opacity:1}} transition={{type:"spring",stiffness:260,damping:18}}
+                          className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-4 py-3 min-w-[90px] ${tc.border} ${tc.bg}`}>
+                          <div className={`w-9 h-9 rounded-full border-2 ${tc.border} ${tc.bg} flex items-center justify-center font-black text-base ${tc.text}`}>
+                            {winner.username.charAt(0).toUpperCase()}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
+                          {bestItem?.imageUrl&&(
+                            <img src={bestItem.imageUrl} alt={bestItem.name} style={{width:36,height:36,objectFit:"contain",imageRendering:"pixelated",filter:`drop-shadow(0 0 6px ${RARITY_COLOR[bestItem.rarity]??'#888'}aa)`}}/>
+                          )}
+                          <div className={`text-[11px] font-bold ${tc.text} truncate max-w-[80px] text-center`}>{isMe?"You 🎉":winner.username}</div>
+                          <div className="text-[10px] text-muted-foreground"><ValDisplay value={winner.totalValue} size={9}/></div>
+                          {winner.teamIndex===winnerTeamIndex&&<Crown className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400"/>}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex justify-center gap-2 mt-3">
+                  {onCopyBattle&&(
+                    <Button size="sm" variant="outline" onClick={()=>onCopyBattle(animBattle)} className="gap-1.5 text-xs">
+                      <Copy className="w-3 h-3"/>Replay battle
+                    </Button>
+                  )}
+                  {onModifyBattle&&isCreator&&(
+                    <Button size="sm" onClick={()=>onModifyBattle(animBattle)} className="gap-1.5 text-xs bg-primary hover:bg-primary/90">
+                      <Pencil className="w-3 h-3"/>Modify battle
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={onClose} className="text-xs">Close</Button>
+                </div>
+              </div>
+
+              {/* All players item grid — round by round */}
+              <div className="flex-1 overflow-auto min-h-0">
+                {/* Player headers row */}
+                <div className="flex border-b border-border/20 bg-card/20 sticky top-0 z-10">
+                  {sortedPlayers.map((player,pi)=>{
+                    const tc=TEAM_COLORS[player.teamIndex%TEAM_COLORS.length]??TEAM_COLORS[0];
+                    const isWinner=winnerTeamIndex!==undefined&&player.teamIndex===winnerTeamIndex;
+                    const prevTeam=pi>0?sortedPlayers[pi-1].teamIndex:-1;
+                    return (
+                      <React.Fragment key={player.userId}>
+                        {pi>0&&player.teamIndex!==prevTeam&&(
+                          <div className="flex-shrink-0 w-6 flex items-center justify-center bg-background/40 border-x border-border/20">
+                            <span className="text-[8px] font-black text-muted-foreground/30 [writing-mode:vertical-lr]">VS</span>
+                          </div>
+                        )}
+                        <div className={`flex-1 flex flex-col items-center py-2 px-1 border-r border-border/10 ${isWinner?tc.bg:""} min-w-0`}>
+                          <div className={`w-6 h-6 rounded-full border ${tc.border} ${tc.bg} flex items-center justify-center font-black text-[10px] ${tc.text} mb-0.5`}>
+                            {player.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div className={`text-[9px] font-bold truncate w-full text-center ${tc.text}`}>{player.username}</div>
+                          <div className="text-[9px] text-muted-foreground"><ValDisplay value={player.totalValue} size={8}/></div>
+                          {isWinner&&<Crown className="w-3 h-3 text-yellow-400 fill-yellow-400 mt-0.5"/>}
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {/* Rounds rows */}
+                {rounds.map((round, ri)=>(
+                  <div key={ri} className="flex border-b border-border/10 hover:bg-white/[0.01]">
+                    {sortedPlayers.map((player, pi)=>{
+                      const roundItem = getPlayerRoundItem(player, ri);
+                      const prevTeam = pi>0?sortedPlayers[pi-1].teamIndex:-1;
+                      return (
+                        <React.Fragment key={player.userId}>
+                          {pi>0&&player.teamIndex!==prevTeam&&(
+                            <div className="flex-shrink-0 w-6 border-x border-border/20 bg-background/20"/>
+                          )}
+                          <div className="flex-1 p-1 border-r border-border/10 min-w-0">
+                            {roundItem ? <ItemCard item={roundItem.item} chance={roundItem.chance}/> : <div className="h-8"/>}
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
-            // Linear layout for FFA / 1v1
-            <div className="flex-1 flex overflow-hidden min-h-0 divide-x divide-border/20">
-              {(() => {
-                let colIdx = 0;
-                return teamIndices.map((teamIdx, ti) => {
-                  const teamPlayers = players.filter(p => p.teamIndex === teamIdx);
+            // ── PLAYING STATE: reels + item labels ─────────────────
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+
+              {/* Round progress dots */}
+              {totalRounds>0&&(
+                <div className="flex-shrink-0 flex items-center justify-center gap-1.5 py-1.5 border-b border-border/10 bg-background/20">
+                  {rounds.map((_,i)=>(
+                    <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      i<revealedRounds?"bg-primary":i===currentRound&&!spinDone?"bg-primary/50 animate-pulse":"bg-border/30"}`}/>
+                  ))}
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    Round <span className="text-foreground font-bold">{Math.min(currentRound+1,totalRounds)}</span>/{totalRounds}
+                  </span>
+                </div>
+              )}
+
+              {/* Player headers — compact horizontal row above reel */}
+              <div className="flex-shrink-0 flex border-b border-border/10">
+                {sortedPlayers.map((player,pi)=>{
+                  const tc=TEAM_COLORS[player.teamIndex%TEAM_COLORS.length]??TEAM_COLORS[0];
+                  const isWinner=showWinner&&winnerTeamIndex!==undefined&&player.teamIndex===winnerTeamIndex;
+                  const isLoser=showWinner&&winnerTeamIndex!==undefined&&player.teamIndex!==winnerTeamIndex;
+                  const prevTeam=pi>0?sortedPlayers[pi-1].teamIndex:-1;
                   return (
-                    <React.Fragment key={teamIdx}>
-                      {ti > 0 && (
-                        <div className="flex-shrink-0 flex items-center justify-center bg-background/40 border-x border-border/20" style={{ width: 28 }}>
-                          <span className="text-[10px] font-black text-muted-foreground/30 [writing-mode:vertical-lr]">VS</span>
+                    <React.Fragment key={player.userId}>
+                      {pi>0&&player.teamIndex!==prevTeam&&(
+                        <div className="flex-shrink-0 w-6 flex items-center justify-center border-x border-border/20 bg-background/40">
+                          <span className="text-[8px] font-black text-muted-foreground/30 [writing-mode:vertical-lr]">VS</span>
                         </div>
                       )}
-                      {teamPlayers.map((player) => {
-                        const col = colIdx++;
-                        return (
-                          <div key={player.userId} className="flex-1 min-w-0 flex flex-col">
-                            {renderPlayerCol(player, col)}
+                      <div className={`flex-1 flex items-center justify-between gap-1 px-2 py-1.5 border-r border-border/10 min-w-0 transition-all ${
+                        isLoser?"opacity-30":""} ${isWinner?tc.bg:""}`}>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <div className={`w-4 h-4 rounded-full border ${tc.border} ${tc.bg} flex-shrink-0 flex items-center justify-center font-black text-[9px] ${tc.text}`}>
+                            {player.username.charAt(0).toUpperCase()}
                           </div>
-                        );
-                      })}
+                          <span className={`text-[10px] font-bold truncate ${tc.text}`}>{player.username}</span>
+                          {isWinner&&<Crown className="w-3 h-3 text-yellow-400 fill-yellow-400 flex-shrink-0"/>}
+                          {player.isBot&&<Bot className="w-2.5 h-2.5 text-muted-foreground/40 flex-shrink-0"/>}
+                        </div>
+                        <span className="text-[9px] flex-shrink-0 text-muted-foreground"><ValDisplay value={player.totalValue} size={8}/></span>
+                      </div>
                     </React.Fragment>
                   );
-                });
-              })()}
+                })}
+              </div>
+
+              {/* Shared reel bar — Cases.tsx exact layout with shared triangles + lozenge separators */}
+              <div className="flex-shrink-0">
+                {reelEntries.length>0 ? (
+                  <SharedReelBar
+                    key={phase==="tiebreaker" ? currentRound+1000 : currentRound}
+                    columns={reelEntries}
+                    triColor={triColor}
+                  />
+                ) : (
+                  // Placeholder before first round
+                  <div style={{position:"relative",height:VERT_ITEM_H,background:REEL_BG,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <div style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:0,height:0,borderTop:"12px solid transparent",borderBottom:"12px solid transparent",borderLeft:`14px solid ${triColor}40`,zIndex:100}}/>
+                    <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",width:0,height:0,borderTop:"12px solid transparent",borderBottom:"12px solid transparent",borderRight:`14px solid ${triColor}40`,zIndex:100}}/>
+                    <Package className="w-8 h-8 text-muted-foreground/20"/>
+                  </div>
+                )}
+              </div>
+
+              {/* Item labels row — shows after each spin completes */}
+              <div className="flex-shrink-0 flex border-b border-border/10">
+                {sortedPlayers.map((player,pi)=>{
+                  const roundResult=currentRoundData?.results.find(r=>String(r.userId)===String(player.userId))?.item??null;
+                  const rc=roundResult?(RARITY_COLOR[roundResult.rarity]??"#888"):undefined;
+                  const prevTeam=pi>0?sortedPlayers[pi-1].teamIndex:-1;
+                  return (
+                    <React.Fragment key={player.userId}>
+                      {pi>0&&player.teamIndex!==prevTeam&&(
+                        <div className="flex-shrink-0 w-6 border-x border-border/20 bg-background/20"/>
+                      )}
+                      <div className="flex-1 h-9 flex flex-col items-center justify-center border-r border-border/10 bg-background/30 min-w-0 px-1">
+                        {spinDone&&roundResult?(
+                          <>
+                            <div className="text-[9px] font-bold truncate w-full text-center leading-tight" style={{color:rc}}>{roundResult.name}</div>
+                            <div className="text-[9px] text-muted-foreground/70"><ValDisplay value={roundResult.value} size={8}/></div>
+                          </>
+                        ):(
+                          <div className="text-[9px] text-muted-foreground/20">—</div>
+                        )}
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+
+              {/* Revealed items history — round rows */}
+              <div className="flex-1 overflow-auto min-h-0">
+                {revealedRounds===0?(
+                  <div className="flex items-center justify-center h-full text-muted-foreground/20 text-sm">Items will appear here...</div>
+                ):(
+                  rounds.slice(0,revealedRounds).map((_,ri)=>{
+                    const roundIdx=revealedRounds-1-ri; // most recent first
+                    return (
+                      <div key={roundIdx} className="flex border-b border-border/10 hover:bg-white/[0.01]">
+                        {sortedPlayers.map((player,pi)=>{
+                          const roundItem=getPlayerRoundItem(player,roundIdx);
+                          const prevTeam=pi>0?sortedPlayers[pi-1].teamIndex:-1;
+                          return (
+                            <React.Fragment key={player.userId}>
+                              {pi>0&&player.teamIndex!==prevTeam&&(
+                                <div className="flex-shrink-0 w-6 border-x border-border/20 bg-background/20"/>
+                              )}
+                              <div className="flex-1 p-1 border-r border-border/10 min-w-0">
+                                {roundItem?<ItemCard item={roundItem.item} chance={roundItem.chance}/>:<div className="h-8"/>}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           )}
         </div>
       )}
-
-      {/* ── Winner Banner ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showWinner && animBattle && (
-          <motion.div
-            initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 220, damping: 22 }}
-            className="flex-shrink-0 border-t border-border bg-card/90 backdrop-blur px-4 py-3 flex items-center justify-between gap-3"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              {battleType === "shared" ? (
-                <>
-                  <span className="text-lg">🤝</span>
-                  <div>
-                    <div className="font-bold text-sm text-cyan-300">Everyone shares the prize!</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      Each: <ValDisplay value={Math.floor(totalPrize / Math.max(animBattle.players.filter(p => !p.isBot).length, 1))} size={11} />
-                    </div>
-                  </div>
-                </>
-              ) : winnerTeamIndex !== undefined ? (
-                <>
-                  <span className="text-lg">🏆</span>
-                  {(() => {
-                    const wp = animBattle.players.filter(p => p.teamIndex === winnerTeamIndex);
-                    const isMe = wp.some(p => String(p.userId) === String(currentUserId));
-                    const tc = TEAM_COLORS[winnerTeamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
-                    return (
-                      <div>
-                        <div className={`font-bold text-sm ${tc.text}`}>
-                          {isMe ? "You win! 🎉" : `${wp.map(p => p.username).join(" & ")} wins!`}
-                        </div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          Prize: <ValDisplay value={totalPrize} size={11} />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="font-bold text-sm text-muted-foreground">Battle complete</div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {onCopyBattle && (
-                <Button size="sm" variant="outline" onClick={() => onCopyBattle(animBattle)} className="text-xs">Replay</Button>
-              )}
-              <Button size="sm" onClick={onClose} className="text-xs bg-primary hover:bg-primary/90">Close</Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
