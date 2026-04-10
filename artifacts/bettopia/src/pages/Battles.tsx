@@ -615,15 +615,15 @@ function CreateBattleView({
                 teams.push(Array.from({ length: playersPerTeam }, (_, j) => i + j + 1));
               }
               return (
-                <div className="flex items-center justify-center gap-2 flex-wrap">
+                <div className="flex items-center justify-center gap-3 overflow-x-auto">
                   {teams.map((team, ti) => (
                     <React.Fragment key={ti}>
-                      {ti > 0 && <span className="text-muted-foreground/40 text-xs font-bold px-1">VS</span>}
-                      <div className="flex items-center gap-1.5">
+                      {ti > 0 && <span className="text-muted-foreground/40 text-xs font-bold flex-shrink-0">VS</span>}
+                      <div className="flex items-end gap-1.5 flex-shrink-0">
                         {team.map((pNum) => (
                           <div key={pNum} className="flex flex-col items-center gap-1">
-                            <div className="w-10 h-10 rounded-full border-2 border-dashed border-primary/30 bg-primary/5 flex items-center justify-center">
-                              <Users className="w-4 h-4 text-primary/40" />
+                            <div className="w-9 h-9 rounded-full border-2 border-dashed border-primary/30 bg-primary/5 flex items-center justify-center">
+                              <Users className="w-3.5 h-3.5 text-primary/40" />
                             </div>
                             <span className="text-[10px] text-muted-foreground/50">P{pNum}</span>
                           </div>
