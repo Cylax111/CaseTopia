@@ -4,9 +4,10 @@ import { ArrowLeft, Package, Crown, Eye, Bot, Loader2, LogOut, Volume2, VolumeX,
 import { GemIcon } from "./GemIcon";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import goldOrbSrc from "@assets/legendary_orb_1775538080736.webp";
+import bigOrbSrc from "@assets/legendary_orb_1775536735371.webp";
+import orbPlaceholderSrc from "@assets/legendary_orb_1775538080736.webp";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface BattleItem {
   id: string;
@@ -15,6 +16,10 @@ interface BattleItem {
   value: number;
   rarity: string;
   imageUrl?: string;
+}
+
+interface CaseItem extends BattleItem {
+  chance: number;
 }
 
 interface BattlePlayer {
@@ -37,7 +42,7 @@ interface CaseData {
   id: string;
   name: string;
   price: number;
-  items: (BattleItem & { chance: number })[];
+  items: CaseItem[];
 }
 
 interface BattleResult {
@@ -55,15 +60,15 @@ interface BattleResult {
   rounds: BattleRound[];
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TEAM_COLORS = [
-  { border: "border-blue-500",  bg: "bg-blue-500/10",  text: "text-blue-400",  glow: "shadow-[0_0_18px_rgba(59,130,246,0.5)]",  hex: "#3B82F6", solid: "bg-blue-500" },
-  { border: "border-red-500",   bg: "bg-red-500/10",   text: "text-red-400",   glow: "shadow-[0_0_18px_rgba(239,68,68,0.5)]",   hex: "#EF4444", solid: "bg-red-500" },
-  { border: "border-green-500", bg: "bg-green-500/10", text: "text-green-400", glow: "shadow-[0_0_18px_rgba(34,197,94,0.5)]",   hex: "#22C55E", solid: "bg-green-500" },
-  { border: "border-yellow-500",bg: "bg-yellow-500/10",text: "text-yellow-400",glow: "shadow-[0_0_18px_rgba(234,179,8,0.5)]",   hex: "#EAB308", solid: "bg-yellow-500" },
-  { border: "border-pink-500",  bg: "bg-pink-500/10",  text: "text-pink-400",  glow: "shadow-[0_0_18px_rgba(236,72,153,0.5)]",  hex: "#EC4899", solid: "bg-pink-500" },
-  { border: "border-cyan-500",  bg: "bg-cyan-500/10",  text: "text-cyan-400",  glow: "shadow-[0_0_18px_rgba(6,182,212,0.5)]",   hex: "#06B6D4", solid: "bg-cyan-500" },
+  { border: "border-blue-500",  bg: "bg-blue-500/10",  text: "text-blue-400",  hex: "#3B82F6", solid: "bg-blue-500" },
+  { border: "border-red-500",   bg: "bg-red-500/10",   text: "text-red-400",   hex: "#EF4444", solid: "bg-red-500" },
+  { border: "border-green-500", bg: "bg-green-500/10", text: "text-green-400", hex: "#22C55E", solid: "bg-green-500" },
+  { border: "border-yellow-500",bg: "bg-yellow-500/10",text: "text-yellow-400",hex: "#EAB308", solid: "bg-yellow-500" },
+  { border: "border-pink-500",  bg: "bg-pink-500/10",  text: "text-pink-400",  hex: "#EC4899", solid: "bg-pink-500" },
+  { border: "border-cyan-500",  bg: "bg-cyan-500/10",  text: "text-cyan-400",  hex: "#06B6D4", solid: "bg-cyan-500" },
 ];
 
 const RARITY_COLOR: Record<string, string> = {
@@ -76,34 +81,47 @@ const RARITY_COLOR: Record<string, string> = {
   divine:    "#FFFFFF",
 };
 
-// Exact same values as Cases.tsx horizontal reel
-const REEL_BG    = "hsl(var(--sidebar))";
-const REEL_H     = 168;
-const ITEM_W     = 96;
-const ITEM_COUNT = 60;
+const REEL_BG     = "hsl(var(--sidebar))";
+const REEL_H      = 168;
+const ITEM_W      = 96;
+const ITEM_COUNT  = 60;
 const WINNING_IDX = 45;
-const START_OFFSET = 5 * ITEM_W; // 480px — same as Cases.tsx
-const LINE_COLOR = "#a78bfa";
+const START_OFFSET = 5 * ITEM_W;
+const ORB_THRESHOLD = 3; // ≤3% → gold orb (same as Cases.tsx GOLD_ORB_THRESHOLD)
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Orb placeholder item — shown in reel strip for ≤3% items (matches ORB_PLACEHOLDER_ITEM in Cases.tsx)
+const ORB_ITEM: BattleItem = {
+  id: "__orb__",
+  name: "???",
+  color: "#fbbf24",
+  value: 0,
+  rarity: "__orb__",
+  imageUrl: orbPlaceholderSrc,
+};
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function getNumTeams(gameMode: string): number {
   return gameMode.split("v").filter(Boolean).length;
 }
-
 function getPlayersPerTeam(gameMode: string): number {
   return parseInt(gameMode.split("v")[0], 10) || 1;
 }
 
-function buildStrip(caseItems: BattleItem[], result: BattleItem): BattleItem[] {
-  const pool = caseItems.length > 0 ? caseItems : [result];
+function buildStrip(caseItems: CaseItem[], result: BattleItem, resultIsRare: boolean): BattleItem[] {
+  const pool = caseItems.length > 0 ? caseItems : [{ ...result, chance: 100 } as CaseItem];
   const strip: BattleItem[] = [];
-  for (let i = 0; i < ITEM_COUNT; i++) strip.push(pool[Math.floor(Math.random() * pool.length)]);
-  strip[WINNING_IDX] = result;
+  for (let i = 0; i < ITEM_COUNT; i++) {
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    // Replace ≤3% items with orb placeholder — exact same rule as Cases.tsx
+    strip.push(item.chance <= ORB_THRESHOLD ? ORB_ITEM : item);
+  }
+  // Winning position: orb if rare, else real item
+  strip[WINNING_IDX] = resultIsRare ? ORB_ITEM : result;
   return strip;
 }
 
-// ─── Currency display ─────────────────────────────────────────────────────────
+// ─── Currency ──────────────────────────────────────────────────────────────────
 
 function ValDisplay({ value, size = 11 }: { value: number; size?: number }) {
   let n: number, unit: string;
@@ -120,7 +138,7 @@ function ValDisplay({ value, size = 11 }: { value: number; size?: number }) {
   );
 }
 
-// ─── Audio ───────────────────────────────────────────────────────────────────
+// ─── Audio ─────────────────────────────────────────────────────────────────────
 
 function createAudioCtx(): AudioContext | null {
   try { return new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { return null; }
@@ -169,6 +187,34 @@ function playStopClick(ctx: AudioContext, muted: boolean) {
   sh.connect(shg); shg.connect(master); sh.start(t); sh.stop(t + 0.11);
 }
 
+function playBonusSwoosh(ctx: AudioContext, muted: boolean) {
+  if (muted) return;
+  const t = ctx.currentTime; const dur = 1.5; const sr = ctx.sampleRate;
+  const bufLen = Math.floor(sr * dur);
+  const buf = ctx.createBuffer(1, bufLen, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+  const noiseSrc = ctx.createBufferSource(); noiseSrc.buffer = buf;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 3;
+  lp.frequency.setValueAtTime(80, t); lp.frequency.exponentialRampToValueAtTime(7000, t + 0.65); lp.frequency.exponentialRampToValueAtTime(1800, t + dur);
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0, t); noiseGain.gain.linearRampToValueAtTime(0.08, t + 0.12); noiseGain.gain.linearRampToValueAtTime(0.10, t + 0.55); noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  noiseSrc.connect(lp); lp.connect(noiseGain); noiseGain.connect(ctx.destination); noiseSrc.start(t); noiseSrc.stop(t + dur);
+  const sweep = ctx.createOscillator(); sweep.type = "sawtooth";
+  sweep.frequency.setValueAtTime(60, t); sweep.frequency.exponentialRampToValueAtTime(900, t + 0.7); sweep.frequency.exponentialRampToValueAtTime(350, t + dur);
+  const sweepFilter = ctx.createBiquadFilter(); sweepFilter.type = "lowpass";
+  sweepFilter.frequency.setValueAtTime(150, t); sweepFilter.frequency.exponentialRampToValueAtTime(3500, t + 0.7); sweepFilter.frequency.exponentialRampToValueAtTime(800, t + dur);
+  const sweepGain = ctx.createGain();
+  sweepGain.gain.setValueAtTime(0, t); sweepGain.gain.linearRampToValueAtTime(0.05, t + 0.06); sweepGain.gain.linearRampToValueAtTime(0.07, t + 0.5); sweepGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  sweep.connect(sweepFilter); sweepFilter.connect(sweepGain); sweepGain.connect(ctx.destination); sweep.start(t); sweep.stop(t + dur);
+  [392, 523, 659, 784, 1047].forEach((freq, i) => {
+    const sp = ctx.createOscillator(); sp.type = "sine"; sp.frequency.value = freq;
+    const spGain = ctx.createGain(); const onset = 0.55 + i * 0.07;
+    spGain.gain.setValueAtTime(0, t + onset); spGain.gain.linearRampToValueAtTime(0.03, t + onset + 0.04); spGain.gain.exponentialRampToValueAtTime(0.0001, t + onset + 0.45);
+    sp.connect(spGain); spGain.connect(ctx.destination); sp.start(t + onset); sp.stop(t + onset + 0.5);
+  });
+}
+
 function playWinSound(ctx: AudioContext, muted: boolean) {
   if (muted) return;
   const t = ctx.currentTime; const sr = ctx.sampleRate;
@@ -187,15 +233,16 @@ function playWinSound(ctx: AudioContext, muted: boolean) {
   });
 }
 
-// ─── Horizontal Reel Item — mirrors ReelItemBox from Cases.tsx ────────────────
+// ─── Reel Item ─────────────────────────────────────────────────────────────────
 
-function HorizReelItem({ item }: { item: BattleItem }) {
-  const hex = RARITY_COLOR[item.rarity] ?? "#888";
+function ReelItem({ item }: { item: BattleItem }) {
+  const isOrb = item.id === "__orb__";
+  const hex = isOrb ? "#fbbf24" : (RARITY_COLOR[item.rarity] ?? "#888");
   return (
     <div className="flex-shrink-0 flex flex-col items-center justify-center" style={{ width: ITEM_W, height: REEL_H }}>
       <div className="flex-1 w-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 8px ${hex}99)` }}>
         {item.imageUrl
-          ? <img src={item.imageUrl} alt={item.name} style={{ width: 40, height: 40, objectFit: "contain", imageRendering: "pixelated" }} />
+          ? <img src={item.imageUrl} alt={item.name} style={{ width: isOrb ? 52 : 40, height: isOrb ? 52 : 40, objectFit: "contain", imageRendering: isOrb ? "auto" : "pixelated" }} />
           : <div style={{ width: 32, height: 32, backgroundColor: hex, borderRadius: 4 }} />}
       </div>
       <div style={{ height: 3, width: "100%", backgroundColor: hex, opacity: 0.85, flexShrink: 0 }} />
@@ -203,167 +250,247 @@ function HorizReelItem({ item }: { item: BattleItem }) {
   );
 }
 
-// ─── Horizontal Reel — exact visual match to Cases.tsx single-open reel ───────
-
-const RARE_ORB_THRESHOLD = 3; // ≤3% chance triggers gold orb
+// ─── Horizontal Reel — self-contained, mirrors Cases.tsx opening sequence ──────
 
 interface HorizReelProps {
-  caseItems: BattleItem[];
+  caseItems: CaseItem[];
   result: BattleItem;
   resultChance?: number;
-  spin: boolean;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
   isWinner: boolean;
   showWinner: boolean;
-  teamHex: string;
+  onMainDone?: () => void;   // fired when main spin ends — BattleScreen uses to show item label
+  onFullyDone?: () => void;  // fired when all animation done (incl. bonus) — BattleScreen uses to advance round
 }
 
-function HorizReel({ caseItems, result, resultChance, spin, audioCtx, mutedRef, isWinner, showWinner }: HorizReelProps) {
-  const strip = useMemo(() => buildStrip(caseItems, result), []);
+function HorizReel({ caseItems, result, resultChance, audioCtx, mutedRef, isWinner, showWinner, onMainDone, onFullyDone }: HorizReelProps) {
+  const resultIsRare = resultChance !== undefined && resultChance <= ORB_THRESHOLD;
+
+  // Main strip — built once on mount
+  const mainStrip = useMemo(() => buildStrip(caseItems, result, resultIsRare), []);
+
+  // Current strip shown (switches to bonus strip during bonus phase)
+  const [currentStrip, setCurrentStrip] = useState<BattleItem[]>(mainStrip);
+  const [reelPhase, setReelPhase] = useState<"main" | "orb" | "bonus" | "done">("main");
+  const [showOrbOverlay, setShowOrbOverlay] = useState(false);
+  const [lineColor, setLineColor] = useState("#a78bfa"); // purple → gold during bonus
+
   const stripRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
+  const allRafsRef = useRef<number[]>([]); // all rAF ids for cleanup
   const lastTickIdx = useRef(-1);
-  const hasSpun = useRef(false);
-  const [showOrb, setShowOrb] = useState(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Spin effect
-  useEffect(() => {
-    if (!spin || !stripRef.current) return;
-    hasSpun.current = true;
-    lastTickIdx.current = -1;
+  // Helper: add a timer and register for cleanup
+  const later = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    timersRef.current.push(id);
+    return id;
+  };
+
+  // Tick monitor — same logic as Cases.tsx startTickMonitor(ref, false)
+  const startTick = (el: HTMLDivElement) => {
     cancelAnimationFrame(rafRef.current);
+    lastTickIdx.current = -1;
+    const loop = () => {
+      const mat = window.getComputedStyle(el).transform;
+      if (mat && mat !== "none") {
+        const vals = mat.match(/matrix.*\((.+)\)/)?.[1].split(",");
+        const rawX = vals ? Math.abs(parseFloat(vals[4] ?? "0")) : 0;
+        const idx = Math.floor(rawX / ITEM_W);
+        if (idx !== lastTickIdx.current && idx > 0 && audioCtx) {
+          lastTickIdx.current = idx;
+          playTick(audioCtx, mutedRef.current);
+        }
+      }
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  };
 
-    // Immediately pre-position (no transition) — same as Cases.tsx
-    stripRef.current.style.transition = "none";
-    stripRef.current.style.transform = `translateX(-${START_OFFSET}px)`;
+  const stopTick = () => cancelAnimationFrame(rafRef.current);
 
-    let raf1: number, raf2: number;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        if (!stripRef.current) return;
-        const randomOffset = Math.floor(Math.random() * 40) - 20;
-        const target = WINNING_IDX * ITEM_W + randomOffset;
-        stripRef.current.style.transition = `transform 2200ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
-        stripRef.current.style.transform = `translateX(-${target}px)`;
+  // Full animation sequence — runs once on mount
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
 
-        const el = stripRef.current;
-        const loop = () => {
-          const mat = window.getComputedStyle(el).transform;
-          if (mat && mat !== "none") {
-            const vals = mat.match(/matrix.*\((.+)\)/)?.[1].split(",");
-            const rawX = vals ? Math.abs(parseFloat(vals[4] ?? "0")) : 0;
-            const idx = Math.floor(rawX / ITEM_W);
-            if (idx !== lastTickIdx.current && idx > 0 && audioCtx) {
-              lastTickIdx.current = idx;
-              playTick(audioCtx, mutedRef.current);
-            }
+    const MAIN_DUR = 2200;
+    const RANDOM_OFFSET = Math.floor(Math.random() * 40) - 20;
+    const mainTarget = WINNING_IDX * ITEM_W + RANDOM_OFFSET;
+
+    // 1. Pre-position (no transition) — same as Cases.tsx setTimeout 50ms → pre-position
+    el.style.transition = "none";
+    el.style.transform = `translateX(-${START_OFFSET}px)`;
+
+    // 2. Double rAF then animate — exact same pattern as Cases.tsx
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        allRafsRef.current.push(raf2);
+        el.style.transition = `transform ${MAIN_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
+        el.style.transform = `translateX(-${mainTarget}px)`;
+        startTick(el);
+
+        // 3. After main spin: snap to exact center (Cases.tsx: duration + 60ms)
+        later(() => {
+          stopTick();
+          el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
+          el.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
+          if (audioCtx) playStopClick(audioCtx, mutedRef.current);
+          onMainDone?.();
+
+          if (!resultIsRare) {
+            // No bonus — done immediately
+            setReelPhase("done");
+            onFullyDone?.();
+            return;
           }
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        rafRef.current = requestAnimationFrame(loop);
+
+          // 4. Rare item — show orb overlay (Cases.tsx: setModalMode("bonus_orb"))
+          later(() => {
+            setShowOrbOverlay(true);
+            setReelPhase("orb");
+            if (audioCtx) playBonusSwoosh(audioCtx, mutedRef.current);
+
+            // Build bonus strip with rare-only pool
+            const rarePool = caseItems.filter(ci => ci.chance <= ORB_THRESHOLD);
+            const bonusPool = rarePool.length > 0 ? rarePool : caseItems;
+            const bonusStrip: BattleItem[] = Array.from({ length: ITEM_COUNT }, () =>
+              bonusPool[Math.floor(Math.random() * bonusPool.length)]
+            );
+            bonusStrip[WINNING_IDX] = result; // Real item at winning position
+
+            // 5. After 1200ms orb show: start bonus spin (Cases.tsx switches strip + animates)
+            later(() => {
+              setShowOrbOverlay(false);
+              setCurrentStrip(bonusStrip); // Swap to bonus strip
+              setLineColor("#fbbf24"); // Gold triangles
+              setReelPhase("bonus");
+
+              // Pre-position bonus strip
+              el.style.transition = "none";
+              el.style.transform = `translateX(-${START_OFFSET}px)`;
+
+              const BONUS_DUR = 1800;
+              const bonusOffset = Math.floor(Math.random() * 40) - 20;
+              const bonusTarget = WINNING_IDX * ITEM_W + bonusOffset;
+
+              const braf1 = requestAnimationFrame(() => {
+                allRafsRef.current.push(braf1);
+                const braf2 = requestAnimationFrame(() => {
+                  allRafsRef.current.push(braf2);
+                  el.style.transition = `transform ${BONUS_DUR}ms cubic-bezier(0.08, 0.82, 0.15, 1)`;
+                  el.style.transform = `translateX(-${bonusTarget}px)`;
+                  startTick(el);
+
+                  // 6. After bonus spin: snap to real item
+                  later(() => {
+                    stopTick();
+                    el.style.transition = "transform 300ms cubic-bezier(0.25, 0, 0, 1)";
+                    el.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
+                    if (audioCtx) playStopClick(audioCtx, mutedRef.current);
+                    setLineColor("#a78bfa"); // Back to purple
+                    setReelPhase("done");
+                    onFullyDone?.();
+                  }, BONUS_DUR + 60);
+                });
+              });
+            }, 1200); // Orb shows for 1200ms
+          }, 360); // 360ms after main snap before orb appears
+        }, MAIN_DUR + 60);
       });
     });
 
+    allRafsRef.current.push(raf1);
+
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      cancelAnimationFrame(rafRef.current);
+      allRafsRef.current.forEach(cancelAnimationFrame);
+      stopTick();
+      timersRef.current.forEach(clearTimeout);
     };
-  }, [spin]);
+  }, []); // Run once on mount
 
-  // Stop effect — snap to exact result position and trigger orb if rare
-  useEffect(() => {
-    if (spin || !stripRef.current || !hasSpun.current) return;
-    cancelAnimationFrame(rafRef.current);
-    stripRef.current.style.transition = `transform 300ms cubic-bezier(0.25, 0, 0, 1)`;
-    stripRef.current.style.transform = `translateX(-${WINNING_IDX * ITEM_W}px)`;
-    if (audioCtx) playStopClick(audioCtx, mutedRef.current);
-    // Show gold orb for rare items (≤3%)
-    if (resultChance !== undefined && resultChance <= RARE_ORB_THRESHOLD) {
-      setTimeout(() => {
-        setShowOrb(true);
-        setTimeout(() => setShowOrb(false), 1800);
-      }, 320);
-    }
-  }, [spin]);
-
-  const winnerGlow = showWinner && isWinner ? `drop-shadow(0 0 12px ${LINE_COLOR}cc)` : undefined;
+  const winnerGlow = showWinner && isWinner ? `drop-shadow(0 0 12px ${lineColor}cc)` : undefined;
 
   return (
     <div style={{ position: "relative", height: REEL_H, overflow: "hidden", background: REEL_BG, filter: winnerGlow }}>
-      {/* Triangle top — pointing down toward center */}
-      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: `14px solid ${LINE_COLOR}`, zIndex: 100, pointerEvents: "none" }} />
-      {/* Triangle bottom — pointing up toward center */}
-      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: `14px solid ${LINE_COLOR}`, zIndex: 100, pointerEvents: "none" }} />
-      {/* Left gradient fade */}
+      {/* Triangles — gold during bonus, purple otherwise */}
+      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: `14px solid ${lineColor}`, zIndex: 100, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: `14px solid ${lineColor}`, zIndex: 100, pointerEvents: "none" }} />
+      {/* Gradient fades */}
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-      {/* Right gradient fade */}
       <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 120, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-      {/* Left chevron */}
+      {/* Chevrons */}
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
         <ChevronLeft style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
       </div>
-      {/* Right chevron */}
       <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" }}>
         <ChevronRight style={{ color: "rgba(255,255,255,0.22)", width: 22, height: 22 }} />
       </div>
-      {/* Strip — paddingLeft centers item[0], same formula as Cases.tsx */}
-      <div
-        ref={stripRef}
-        style={{ display: "flex", gap: 0, height: "100%", paddingLeft: "calc(50% - 48px)" }}
-      >
-        {strip.map((item, i) => <HorizReelItem key={i} item={item} />)}
+      {/* Strip */}
+      <div ref={stripRef} style={{ display: "flex", gap: 0, height: "100%", paddingLeft: "calc(50% - 48px)" }}>
+        {currentStrip.map((item, i) => <ReelItem key={i} item={item} />)}
       </div>
-      {/* Gold orb overlay for rare items (≤3%) */}
+      {/* Orb overlay — shown during bonus_orb phase (matches Cases.tsx exactly) */}
       <AnimatePresence>
-        {showOrb && (
+        {showOrbOverlay && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.4 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.3 }}
-            transition={{ duration: 0.35 }}
-            style={{ position: "absolute", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255, 200, 50, 0.12)", pointerEvents: "none" }}
+            key="orb-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(1px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
           >
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(255,200,50,0.45) 0%, transparent 70%)", pointerEvents: "none" }} />
             <motion.img
-              src={goldOrbSrc}
-              alt="orb"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.2, ease: "linear", repeat: Infinity }}
-              style={{ width: 72, height: 72, filter: "drop-shadow(0 0 20px #ffd700) drop-shadow(0 0 40px #ffa500)", zIndex: 1 }}
+              key="big-orb"
+              src={bigOrbSrc}
+              alt="Bonus Orb"
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.05 }}
+              style={{ width: 80, height: 80, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 0 20px rgba(251,191,36,0.9)) drop-shadow(0 0 40px rgba(251,191,36,0.5))" }}
             />
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Bonus spin label */}
+      {reelPhase === "bonus" && (
+        <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, textAlign: "center", zIndex: 15, pointerEvents: "none" }}>
+          <span style={{ fontSize: 9, fontWeight: 900, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 8px rgba(251,191,36,0.7)" }}>BONUS!</span>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Player Column ────────────────────────────────────────────────────────────
+// ─── Player Column ─────────────────────────────────────────────────────────────
 
 interface PlayerColProps {
   player: BattlePlayer;
-  caseItems: BattleItem[];
+  caseItems: CaseItem[];
   currentRoundResult: BattleItem | null;
   currentRoundResultChance?: number;
   revealedItems: { item: BattleItem; chance?: number }[];
-  spinning: boolean;
+  mainSpinDone: boolean;
   isWinner: boolean;
   isLoser: boolean;
   showWinner: boolean;
   round: number;
   audioCtx: AudioContext | null;
   mutedRef: React.MutableRefObject<boolean>;
+  onMainDone?: () => void;
+  onFullyDone?: () => void;
 }
 
-function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, spinning, isWinner, isLoser, showWinner, round, audioCtx, mutedRef }: PlayerColProps) {
+function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResultChance, revealedItems, mainSpinDone, isWinner, isLoser, showWinner, round, audioCtx, mutedRef, onMainDone, onFullyDone }: PlayerColProps) {
   const tc = TEAM_COLORS[player.teamIndex % TEAM_COLORS.length] ?? TEAM_COLORS[0];
   const rc = currentRoundResult ? (RARITY_COLOR[currentRoundResult.rarity] ?? "#888") : undefined;
 
   return (
     <div className={`flex flex-col min-w-0 transition-all duration-500 ${showWinner && isLoser ? "opacity-30" : ""}`}>
-      {/* Player name + total */}
+      {/* Player header */}
       <div className={`flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border/10 flex-shrink-0 ${showWinner && isWinner ? tc.bg : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <div className={`w-5 h-5 rounded-full border-2 ${tc.border} ${tc.bg} flex-shrink-0 flex items-center justify-center font-black text-[10px] ${tc.text}`}>
@@ -376,7 +503,7 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
         <span className="text-[10px] flex-shrink-0 text-muted-foreground"><ValDisplay value={player.totalValue} size={9} /></span>
       </div>
 
-      {/* Horizontal reel — same height as case opening (168px) */}
+      {/* Reel */}
       <div className="flex-shrink-0">
         {currentRoundResult ? (
           <HorizReel
@@ -384,23 +511,23 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
             caseItems={caseItems}
             result={currentRoundResult}
             resultChance={currentRoundResultChance}
-            spin={spinning}
             audioCtx={audioCtx}
             mutedRef={mutedRef}
             isWinner={isWinner}
             showWinner={showWinner}
-            teamHex={tc.hex}
+            onMainDone={onMainDone}
+            onFullyDone={onFullyDone}
           />
         ) : (
-          // Placeholder — matches reel height, shows case items preview or generic icon
+          // Placeholder before any round starts
           <div style={{ position: "relative", height: REEL_H, background: REEL_BG, overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: `14px solid ${LINE_COLOR}40`, zIndex: 100, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: `14px solid ${LINE_COLOR}40`, zIndex: 100, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "14px solid #a78bfa40", zIndex: 100 }} />
+            <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderBottom: "14px solid #a78bfa40", zIndex: 100 }} />
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to right, ${REEL_BG}, transparent)`, zIndex: 1 }} />
+            <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to left, ${REEL_BG}, transparent)`, zIndex: 1 }} />
             {caseItems.length > 0 ? (
-              <div style={{ display: "flex", height: "100%", alignItems: "center", paddingLeft: "calc(50% - 48px)", gap: 0 }}>
-                {[...caseItems, ...caseItems, ...caseItems].slice(0, 11).map((item, i) => <HorizReelItem key={i} item={item} />)}
+              <div style={{ display: "flex", height: "100%", alignItems: "center", paddingLeft: "calc(50% - 48px)" }}>
+                {[...caseItems, ...caseItems, ...caseItems].slice(0, 11).map((item, i) => <ReelItem key={i} item={item} />)}
               </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/20">
@@ -411,9 +538,9 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
         )}
       </div>
 
-      {/* Current item label — shown after reel stops */}
+      {/* Item label — shows after main spin done */}
       <div className="flex-shrink-0 h-9 flex flex-col items-center justify-center border-b border-border/10 bg-background/30">
-        {!spinning && currentRoundResult ? (
+        {mainSpinDone && currentRoundResult ? (
           <>
             <div className="text-[10px] font-bold truncate px-2 text-center leading-tight" style={{ color: rc }}>{currentRoundResult.name}</div>
             <div className="text-[10px] text-muted-foreground/70"><ValDisplay value={currentRoundResult.value} size={9} /></div>
@@ -454,7 +581,7 @@ function PlayerColumn({ player, caseItems, currentRoundResult, currentRoundResul
   );
 }
 
-// ─── Lobby Slot ───────────────────────────────────────────────────────────────
+// ─── Lobby Slot ────────────────────────────────────────────────────────────────
 
 function LobbySlot({ player, teamIndex, isCreator, addingBot, onAddBot }: {
   player?: BattlePlayer; teamIndex: number;
@@ -491,7 +618,7 @@ function LobbySlot({ player, teamIndex, isCreator, addingBot, onAddBot }: {
   );
 }
 
-// ─── BattleScreen ─────────────────────────────────────────────────────────────
+// ─── BattleScreen ──────────────────────────────────────────────────────────────
 
 interface Props {
   battle: BattleResult;
@@ -509,13 +636,12 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   const [animBattle, setAnimBattle] = useState<BattleResult | null>(
     initialBattle.status === "completed" ? initialBattle : null
   );
-  const [phase, setPhase] = useState<"waiting" | "countdown" | "playing" | "tiebreaker" | "done">(
+  const [phase, setPhase] = useState<"waiting" | "countdown" | "playing" | "tiebreaker_pending" | "tiebreaker" | "done">(
     initialBattle.status === "completed" ? "countdown" : "waiting"
   );
   const [countdown, setCountdown] = useState(3);
   const [currentRound, setCurrentRound] = useState(0);
-  const [spinning, setSpinning] = useState(false);
-  const [tiebreakerSpinning, setTiebreakerSpinning] = useState(false);
+  const [mainSpinDone, setMainSpinDone] = useState(false); // shows item label after main spin
   const [revealedRounds, setRevealedRounds] = useState(0);
   const [showWinner, setShowWinner] = useState(false);
   const [addingBot, setAddingBot] = useState(false);
@@ -543,6 +669,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     timerRef.current = setTimeout(fn, ms);
   }, []);
 
+  // Polling for waiting battles
   useEffect(() => {
     if (phase !== "waiting") return;
     pollRef.current = setInterval(async () => {
@@ -561,6 +688,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [phase, liveBattle.id]);
 
+  // Countdown
   useEffect(() => {
     if (phase !== "countdown") return;
     if (countdown <= 0) { setPhase("playing"); return; }
@@ -568,36 +696,55 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [phase, countdown]);
 
+  // Playing — detect when all rounds done; individual rounds driven by onFullyDone
   useEffect(() => {
     if (phase !== "playing" || !animBattle) return;
     const totalRounds = animBattle.rounds?.length ?? 0;
     if (currentRound >= totalRounds) {
       if (animBattle.isDraw) {
-        tick(() => setPhase("tiebreaker"), 800);
+        tick(() => setPhase("tiebreaker_pending"), 800);
       } else {
-        tick(() => { setShowWinner(true); setPhase("done"); if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current); }, 1000);
+        tick(() => {
+          setShowWinner(true);
+          setPhase("done");
+          if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
+        }, 1000);
       }
-      return;
     }
-    setSpinning(true);
-    tick(() => {
-      setSpinning(false);
-      tick(() => { setRevealedRounds((r) => r + 1); tick(() => setCurrentRound((r) => r + 1), 700); }, 350);
-    }, 2400);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    // rounds < total: reel mounts automatically and drives its own timing via callbacks
   }, [phase, currentRound, animBattle]);
 
+  // Tiebreaker pending → ready (small delay for overlay animation)
   useEffect(() => {
-    if (phase !== "tiebreaker" || !animBattle) return;
-    tick(() => {
-      setTiebreakerSpinning(true);
+    if (phase !== "tiebreaker_pending") return;
+    const t = setTimeout(() => setPhase("tiebreaker"), 500);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // Tiebreaker active: handled by onFullyDone callback from col[0]
+  // (no separate timer needed)
+
+  // Callbacks from col[0]'s reel
+  const handleMainDone = useCallback(() => {
+    setMainSpinDone(true);
+  }, []);
+
+  const handleFullyDone = useCallback(() => {
+    if (phase === "tiebreaker") {
       tick(() => {
-        setTiebreakerSpinning(false);
-        tick(() => { setShowWinner(true); setPhase("done"); if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current); }, 500);
-      }, 2800);
-    }, 400);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [phase, animBattle]);
+        setShowWinner(true);
+        setPhase("done");
+        if (audioCtxRef.current) playWinSound(audioCtxRef.current, mutedRef.current);
+      }, 300);
+      return;
+    }
+    // Advance round
+    setRevealedRounds(r => r + 1);
+    tick(() => {
+      setMainSpinDone(false);
+      setCurrentRound(r => r + 1);
+    }, 700);
+  }, [phase, tick]);
 
   const handleAddBot = useCallback(async () => {
     if (!onAddBot || addingBot) return;
@@ -621,7 +768,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     finally { setLeaving(false); setLeaveConfirm(false); }
   }, [onLeave, leaving, liveBattle.id, onClose]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
   const battle = animBattle ?? liveBattle;
   const players = battle.players;
@@ -633,16 +780,19 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   const maxPlayers = liveBattle.maxPlayers;
   const numTeams = getNumTeams(gameMode);
   const playersPerTeam = getPlayersPerTeam(gameMode);
-  const currentRoundData = rounds[currentRound] ?? null;
-  const tiebreakerRoundData = rounds[rounds.length - 1] ?? null;
-  const caseForRound = animBattle?.cases?.[currentRound] ?? animBattle?.cases?.[0];
-  const caseItemsForRound: BattleItem[] = caseForRound?.items ?? [];
+  const currentRoundData = (phase === "tiebreaker" || phase === "tiebreaker_pending")
+    ? rounds[rounds.length - 1] ?? null
+    : rounds[currentRound] ?? null;
+  const caseForRound = phase === "tiebreaker" || phase === "tiebreaker_pending"
+    ? (animBattle?.cases?.[rounds.length - 1] ?? animBattle?.cases?.[0])
+    : (animBattle?.cases?.[currentRound] ?? animBattle?.cases?.[0]);
+  const caseItemsForRound: CaseItem[] = (caseForRound?.items ?? []) as CaseItem[];
   const teamIndices = [...new Set(players.map((p) => p.teamIndex))].sort();
   const occupiedSlots = new Map<number, BattlePlayer>();
   for (const p of liveBattle.players) occupiedSlots.set(p.slotIndex ?? 0, p);
   const totalPrize = (liveBattle.cases ?? []).reduce((s, c) => s + (c.price ?? 0), 0) * maxPlayers;
+  const isTeamBattle = numTeams === 2 && playersPerTeam > 1;
 
-  // Running team totals
   const runningTeamTotals = useMemo(() => {
     const totals: Record<number, number> = {};
     for (const ti of teamIndices) totals[ti] = 0;
@@ -655,17 +805,12 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
     return totals;
   }, [revealedRounds, rounds, players, teamIndices]);
 
-  // Team-grouped layout for 2-team battles with 2+ players per team
-  const isTeamBattle = numTeams === 2 && playersPerTeam > 1;
-
-  // Shared helper for rendering a single player's column in the playing phase
+  // Render a single player column
   const renderPlayerCol = (player: BattlePlayer, colIdx: number) => {
-    const isAudioCol = colIdx === 0;
+    const isMasterCol = colIdx === 0;
     const isWinner = winnerTeamIndex !== undefined && player.teamIndex === winnerTeamIndex;
     const isLoser = winnerTeamIndex !== undefined && !isWinner;
-    const roundResult = phase === "tiebreaker"
-      ? tiebreakerRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null
-      : currentRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null;
+    const roundResult = currentRoundData?.results.find(r => String(r.userId) === String(player.userId))?.item ?? null;
     const roundResultChance = roundResult
       ? (caseItemsForRound as any[]).find(ci => ci.id === roundResult.id || (ci.name === roundResult.name && ci.value === roundResult.value))?.chance
       : undefined;
@@ -673,7 +818,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
       const item = r.results.find(res => String(res.userId) === String(player.userId))?.item;
       if (!item) return null;
       const catalogItem = animBattle?.cases?.[ri]?.items.find(ci => ci.id === item.id || (ci.name === item.name && ci.value === item.value));
-      return { item, chance: catalogItem?.chance };
+      return { item, chance: (catalogItem as any)?.chance };
     }).filter(Boolean) as { item: BattleItem; chance?: number }[];
 
     return (
@@ -684,13 +829,15 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         currentRoundResult={roundResult}
         currentRoundResultChance={roundResultChance}
         revealedItems={revealedItems}
-        spinning={(spinning && phase === "playing") || tiebreakerSpinning}
+        mainSpinDone={mainSpinDone}
         isWinner={isWinner}
         isLoser={isLoser}
         showWinner={showWinner}
         round={phase === "tiebreaker" ? currentRound + 1000 : currentRound}
-        audioCtx={isAudioCol ? audioCtxRef.current : null}
+        audioCtx={isMasterCol ? audioCtxRef.current : null}
         mutedRef={mutedRef}
+        onMainDone={isMasterCol ? handleMainDone : undefined}
+        onFullyDone={isMasterCol ? handleFullyDone : undefined}
       />
     );
   };
@@ -698,7 +845,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" onClick={initAudio}>
 
-      {/* ── Top bar ──────────────────────────────────────────────────── */}
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border/20 bg-card/40">
         <Button variant="ghost" size="sm" onClick={onClose}
           className="gap-1 text-muted-foreground hover:text-foreground text-xs font-bold px-2 h-8">
@@ -706,7 +853,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         </Button>
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0 scrollbar-none">
           {liveBattle.cases?.map((c, i) => {
-            const active = phase === "playing" && i === currentRound;
+            const active = (phase === "playing" || phase === "tiebreaker") && i === (phase === "tiebreaker" ? rounds.length - 1 : currentRound);
             return (
               <div key={c.id}
                 className={`flex-shrink-0 flex items-center gap-1 rounded-md px-1.5 py-0.5 border text-[10px] font-semibold transition-all ${
@@ -734,16 +881,14 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
           <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-0.5">
             <ValDisplay value={totalPrize} size={10} />
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleMute(); initAudio(); }}
-            className="w-7 h-7 rounded-md border border-border/30 bg-background/40 flex items-center justify-center hover:border-primary/50 hover:bg-primary/10 transition-all"
-          >
+          <button onClick={(e) => { e.stopPropagation(); toggleMute(); initAudio(); }}
+            className="w-7 h-7 rounded-md border border-border/30 bg-background/40 flex items-center justify-center hover:border-primary/50 hover:bg-primary/10 transition-all">
             {muted ? <VolumeX className="w-3.5 h-3.5 text-muted-foreground" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* ── Waiting Lobby ─────────────────────────────────────────────── */}
+      {/* ── Waiting Lobby ────────────────────────────────────────────────── */}
       {phase === "waiting" && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-6">
           <div className="text-center">
@@ -795,7 +940,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         </div>
       )}
 
-      {/* ── Countdown overlay ─────────────────────────────────────────── */}
+      {/* ── Countdown overlay ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {phase === "countdown" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -812,14 +957,14 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         )}
       </AnimatePresence>
 
-      {/* ── Tiebreaker overlay ────────────────────────────────────────── */}
+      {/* ── Tiebreaker overlay ────────────────────────────────────────────── */}
       <AnimatePresence>
-        {phase === "tiebreaker" && (
+        {(phase === "tiebreaker" || phase === "tiebreaker_pending") && !showWinner && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+            className="absolute inset-0 z-[5] flex flex-col items-center justify-center pointer-events-none">
             <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 260, damping: 18 }}
-              className="flex flex-col items-center gap-2">
+              className="flex flex-col items-center gap-2 bg-background/70 backdrop-blur px-8 py-4 rounded-2xl border border-yellow-500/30">
               <div className="text-4xl">🤝</div>
               <div className="text-3xl font-black text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.8)]">DRAW!</div>
               <div className="text-sm font-bold text-muted-foreground animate-pulse">Tiebreaker spin...</div>
@@ -828,8 +973,8 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         )}
       </AnimatePresence>
 
-      {/* ── Battle animation ──────────────────────────────────────────── */}
-      {phase !== "waiting" && animBattle && (
+      {/* ── Battle animation ──────────────────────────────────────────────── */}
+      {(phase === "playing" || phase === "tiebreaker" || phase === "tiebreaker_pending" || phase === "done") && animBattle && (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
           {/* Round progress dots */}
@@ -837,7 +982,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
             <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 border-b border-border/10">
               {rounds.map((_, i) => (
                 <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  i < revealedRounds ? "bg-primary" : i === currentRound && spinning ? "bg-primary/50 animate-pulse" : "bg-border/30"
+                  i < revealedRounds ? "bg-primary" : i === currentRound && !mainSpinDone ? "bg-primary/50 animate-pulse" : "bg-border/30"
                 }`} />
               ))}
               <span className="text-[10px] text-muted-foreground ml-1">
@@ -846,7 +991,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
             </div>
           )}
 
-          {/* ── Team-grouped layout (2v2, 3v3) ── */}
+          {/* Team-grouped layout (2v2, 3v3) */}
           {isTeamBattle ? (
             <div className="flex-1 flex overflow-hidden min-h-0">
               {teamIndices.map((teamIdx, ti) => {
@@ -856,7 +1001,6 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
                 const isLosingTeam = winnerTeamIndex !== undefined && !isWinningTeam;
                 const teamTotal = runningTeamTotals[teamIdx] ?? 0;
                 const baseColIdx = ti * playersPerTeam;
-
                 return (
                   <React.Fragment key={teamIdx}>
                     {ti > 0 && (
@@ -865,11 +1009,8 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
                       </div>
                     )}
                     <div className={`flex-1 flex flex-col min-w-0 border-2 transition-all duration-500 ${
-                      showWinner
-                        ? isWinningTeam ? `${tc.border} ${tc.bg}` : isLosingTeam ? "border-border/20 opacity-40" : "border-border/20"
-                        : "border-border/20"
+                      showWinner ? isWinningTeam ? `${tc.border} ${tc.bg}` : isLosingTeam ? "border-border/20 opacity-40" : "border-border/20" : "border-border/20"
                     }`}>
-                      {/* Team header */}
                       <div className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border/10 ${tc.bg}`}>
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${tc.solid}`} />
@@ -880,8 +1021,6 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
                           <ValDisplay value={teamTotal} size={10} />
                         </div>
                       </div>
-
-                      {/* Player columns */}
                       <div className="flex-1 flex overflow-hidden min-h-0 divide-x divide-border/10">
                         {teamPlayers.map((player, pi) => (
                           <div key={player.userId} className="flex-1 min-w-0 flex flex-col">
@@ -895,7 +1034,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
               })}
             </div>
           ) : (
-            // ── Linear layout for FFA / 1v1 ──
+            // Linear layout for FFA / 1v1
             <div className="flex-1 flex overflow-hidden min-h-0 divide-x divide-border/20">
               {(() => {
                 let colIdx = 0;
@@ -925,7 +1064,7 @@ export function BattleScreen({ battle: initialBattle, currentUserId, isCreator =
         </div>
       )}
 
-      {/* ── Winner Banner ─────────────────────────────────────────────── */}
+      {/* ── Winner Banner ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showWinner && animBattle && (
           <motion.div
