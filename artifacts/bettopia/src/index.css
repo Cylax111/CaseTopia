@@ -353,3 +353,30 @@
 .rainbow-chest-tint {
   animation: chest-rainbow-fill 3s linear infinite;
 }
+
+/* Borrow slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: 3px solid hsl(var(--background));
+  box-shadow: 0 0 0 2px hsl(var(--primary));
+  margin-top: -9px;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: 3px solid hsl(var(--background));
+  box-shadow: 0 0 0 2px hsl(var(--primary));
+}

@@ -692,26 +692,30 @@ function CreateBattleView({
           </div>
 
           {/* Borrow */}
-          <div className="bg-card/60 border border-border rounded-2xl p-4 space-y-2.5">
+          <div className="bg-card/60 border border-border rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Borrow</span>
+              <span className="text-xl font-bold">{borrowPercent}%</span>
               {borrowPercent > 0 && (
                 <span className="text-xs text-orange-300 font-semibold">You receive {100 - borrowPercent}% of winnings</span>
               )}
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="relative">
+              <input
+                type="range"
+                min={0}
+                max={80}
+                step={1}
+                value={borrowPercent}
+                onChange={e => setBorrowPercent(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, hsl(var(--primary)) ${(borrowPercent / 80) * 100}%, hsl(var(--border)) ${(borrowPercent / 80) * 100}%)`
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] text-muted-foreground/50 font-medium">
               {[0, 20, 40, 60, 80].map(pct => (
-                <button
-                  key={pct}
-                  onClick={() => setBorrowPercent(pct)}
-                  className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                    borrowPercent === pct
-                      ? "border-orange-500 bg-orange-500/15 text-orange-300"
-                      : "border-border bg-background/40 text-muted-foreground hover:border-orange-500/40 hover:text-foreground"
-                  }`}
-                >
-                  {pct}%
-                </button>
+                <span key={pct}>{pct}%</span>
               ))}
             </div>
             {borrowPercent > 0 && (
